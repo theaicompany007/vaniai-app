@@ -235,6 +235,8 @@ $envLocalPath = Join-Path $LocalProjectPath '.env.local'
 if (-not (Test-Path $envLocalPath)) {
     Write-Warning '.env.local not found locally; skip copy'
 } else {
+    # Ensure remote project directory exists so SCP can write .env.local (gcloud scp fails if dest dir missing)
+    Invoke-SshCommand ('mkdir -p ' + $RemoteProjectPath) -NoOutput
     Invoke-ScpCommand $envLocalPath ($RemoteProjectPath + '/.env.local')
     Write-Success 'Copied .env.local'
     Write-Info ('Running set-env-mode.sh ' + $VaniaAIEnvironment + ' (comment dev / enable prod or vice versa)...')
