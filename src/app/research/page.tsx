@@ -13,6 +13,7 @@ import {
   Copy,
   Check,
   BookmarkPlus,
+  Bookmark,
   Clock,
   X,
   Users,
@@ -20,17 +21,85 @@ import {
   Mic,
   MicOff,
   ChevronDown,
+  ChevronLeft,
+  Building2,
+  TrendingUp,
+  GitCompare,
+  Radio,
+  Target,
+  Briefcase,
+  type LucideIcon,
 } from 'lucide-react';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
 
-// ─── Research Templates ─────────────────────────────────────────────────────
-const RESEARCH_TEMPLATES = [
-  { id: '1', title: 'Company Deep Dive',   description: "Research a company's tech stack, leadership, and buying signals.", gradient: 'from-violet-600 to-purple-700', query: 'Perform a deep dive research on ' },
-  { id: '2', title: 'Market Intelligence', description: 'Analyze market trends and identify expansion opportunities.',      gradient: 'from-cyan-600 to-blue-700',   query: 'Research market trends and opportunities for ' },
-  { id: '3', title: 'Competitor Analysis', description: 'Map out competitors and find differentiation angles.',              gradient: 'from-emerald-600 to-teal-700', query: 'Research competitor landscape and differentiation for ' },
-  { id: '4', title: 'Signal Analysis',     description: 'Explain a specific buying signal and recommended actions.',        gradient: 'from-orange-500 to-red-600',   query: 'Analyze buying signal and recommend approach for ' },
-  { id: '5', title: 'Account Strategy',    description: 'Build a strategic entry plan for a target account.',               gradient: 'from-pink-600 to-rose-700',    query: 'Create account entry strategy for ' },
-  { id: '6', title: 'Industry Briefing',   description: "Get a rapid briefing on an industry's current challenges.",        gradient: 'from-amber-500 to-yellow-600', query: 'Provide an industry briefing on ' },
+// ─── Research prompt cards (SPARK-style: icon, title, detailed description) ───
+const RESEARCH_TEMPLATES: { id: string; title: string; prompt: string; accent: string; Icon: LucideIcon }[] = [
+  {
+    id: '1',
+    title: 'Company Deep Dive',
+    prompt: 'Perform a deep dive research on [company]. Cover: tech stack and key technologies, leadership team and org structure, recent news and initiatives, buying signals and budget indicators, pain points and recommended sales entry points.',
+    accent: 'violet',
+    Icon: Building2,
+  },
+  {
+    id: '2',
+    title: 'Market Intelligence',
+    prompt: 'Research market trends and expansion opportunities for [company/industry]. Include: market size and growth, key players and dynamics, regulatory or macro factors, whitespace opportunities, and recommended positioning.',
+    accent: 'cyan',
+    Icon: TrendingUp,
+  },
+  {
+    id: '3',
+    title: 'Competitor Analysis',
+    prompt: 'Research the competitor landscape for [company/space]. Map main competitors, their strengths and weaknesses, pricing and GTM, differentiation angles, and where we can win or partner.',
+    accent: 'emerald',
+    Icon: GitCompare,
+  },
+  {
+    id: '4',
+    title: 'Signal Analysis',
+    prompt: 'Analyze this buying signal and recommend an approach: [describe signal]. Explain relevance, urgency, who to contact, suggested messaging, and next steps to convert.',
+    accent: 'orange',
+    Icon: Radio,
+  },
+  {
+    id: '5',
+    title: 'Account Strategy',
+    prompt: 'Build a strategic entry plan for target account [company]. Include: key stakeholders and champions, current state and initiatives, entry points and sequence, objection handling, and success metrics.',
+    accent: 'pink',
+    Icon: Target,
+  },
+  {
+    id: '6',
+    title: 'Industry Briefing',
+    prompt: 'Provide a rapid industry briefing on [industry]. Cover: current challenges and priorities, adoption trends, budget and buying behavior, and how our solutions fit.',
+    accent: 'amber',
+    Icon: Briefcase,
+  },
+];
+
+// ─── Rotating hero copy (heading + subheading) ────────────────────────────────
+const RESEARCH_HERO_VARIANTS: { heading: string; subheading: string }[] = [
+  // Concise punchy two-liners (top recommendation first)
+  { heading: 'Research Smarter. Sell Faster.', subheading: 'Ask Vivek anything — unlimited follow-ups, zero friction.' },
+  { heading: 'Every Answer. Every Account. Instantly.', subheading: 'Vivek is your always-on sales intelligence engine.' },
+  { heading: 'Stop Guessing. Start Winning.', subheading: 'Ask Vivek — deep research in seconds, not hours.' },
+  { heading: 'Your Unfair Sales Advantage.', subheading: 'Ask anything. Vivek never runs out of answers.' },
+  // Bold & power-driven
+  { heading: 'Research at the Speed of Thought.', subheading: 'Ask Vivek anything — unlimited follow-ups, zero friction.' },
+  { heading: 'Know Everything. Win Faster.', subheading: 'Your AI research analyst. Always on.' },
+  { heading: 'Every Deal Starts with the Right Intel.', subheading: 'Vivek finds it. You close it.' },
+  { heading: 'Outresearch. Outsell. Outwin.', subheading: 'Start with Vivek.' },
+  // AI-forward & smart
+  { heading: 'Your AI Research Analyst. Always On.', subheading: 'Deep insights. Instant answers. Real deals.' },
+  { heading: 'Deep Insights. Instant Answers. Real Deals.', subheading: 'Your AI research analyst. Always on.' },
+  { heading: 'From Signal to Strategy — In Seconds.', subheading: 'Ask Vivek. Close faster.' },
+  { heading: 'Intelligence That Sells.', subheading: 'Deep research in seconds, not hours.' },
+  // Conversational & Vivek-centric
+  { heading: 'Ask Vivek. Close Faster.', subheading: 'Your smartest sales analyst is one question away.' },
+  { heading: 'Your Smartest Sales Analyst Is One Question Away.', subheading: 'Vivek knows. Just ask.' },
+  { heading: 'Vivek Knows. Just Ask.', subheading: 'Your always-on sales intelligence engine.' },
+  { heading: 'Ask Once. Sell More.', subheading: 'Vivek never runs out of answers.' },
 ];
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -727,10 +796,14 @@ function ResearchPageInner() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [historyPinned, setHistoryPinned] = useState(true);
+  const [historyVisibleCount, setHistoryVisibleCount] = useState(6);
+  const [historyPanelCollapsed, setHistoryPanelCollapsed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [heroIndex, setHeroIndex] = useState(0);
 
   // Auto-fill from playbook ?q= or ?playbook= params
   useEffect(() => {
@@ -752,6 +825,15 @@ function ResearchPageInner() {
   });
 
   const hasMessages = messages.length > 0;
+
+  // Rotate hero heading/subheading when on empty state (after hasMessages is defined)
+  useEffect(() => {
+    if (hasMessages) return;
+    const interval = setInterval(() => {
+      setHeroIndex((i) => (i + 1) % RESEARCH_HERO_VARIANTS.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hasMessages]);
 
   // Track scroll position to show/hide scroll-to-bottom button
   useEffect(() => {
@@ -882,9 +964,10 @@ function ResearchPageInner() {
     setActiveSessionId(null);
   }
 
+  /** Extract a short title for grouping and badge (e.g. "Asian Paints", "Parle Agro") */
   function getBadge(name: string): string | null {
-    const m = name.match(/^(?:Research:\s*)?([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*)/);
-    return m ? m[1] : null;
+    const m = name.match(/^(?:Research:\s*)?([A-Z][a-zA-Z0-9]+(?:\s[A-Z][a-zA-Z0-9]+)*)/);
+    return m ? m[1].trim() : null;
   }
 
   function groupByDate(sessions: HistorySession[]) {
@@ -904,11 +987,40 @@ function ResearchPageInner() {
     return groups;
   }
 
+  /** Group sessions by title (badge) e.g. "Asian Paints", "Parle Agro"; within each group sort by date newest first */
+  function groupByTitle(sessions: HistorySession[]): Array<{ _groupTitle: string; _groupKey: string } & HistorySession> {
+    const byTitle: Record<string, HistorySession[]> = {};
+    sessions.forEach(s => {
+      const title = getBadge(s.name) || s.name.slice(0, 30) || 'Other';
+      if (!byTitle[title]) byTitle[title] = [];
+      byTitle[title].push(s);
+    });
+    // Sort each group by date (newest first), then sort groups by most recent session
+    const groupKeys = Object.keys(byTitle).sort((a, b) => {
+      const maxA = Math.max(...byTitle[a].map(x => new Date(x.created_at).getTime()));
+      const maxB = Math.max(...byTitle[b].map(x => new Date(x.created_at).getTime()));
+      return maxB - maxA;
+    });
+    const out: Array<{ _groupTitle: string; _groupKey: string } & HistorySession> = [];
+    groupKeys.forEach(key => {
+      const sorted = [...byTitle[key]].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      sorted.forEach(s => out.push({ ...s, _groupTitle: key, _groupKey: key }));
+    });
+    return out;
+  }
+
   const historyQ = historySearch.toLowerCase();
   const filteredHistory = researchHistory.filter(s =>
     !historyQ || s.name.toLowerCase().includes(historyQ) || s.query.toLowerCase().includes(historyQ)
   );
-  const groupedHistory = groupByDate(filteredHistory);
+  const groupedByDate = groupByDate(filteredHistory);
+  // Flatten by date buckets, then apply title grouping so we can show group headers
+  const byDateFlat = (['Today', 'Yesterday', 'This Week', 'Earlier'] as const).flatMap(
+    (g) => (groupedByDate[g] ?? []).map((s) => ({ ...s, _dateGroup: g }))
+  );
+  const flatHistoryList = groupByTitle(byDateFlat);
+  const visibleHistory = flatHistoryList.slice(0, historyVisibleCount);
+  const hasMoreHistory = flatHistoryList.length > historyVisibleCount;
 
   async function loadSessionById(sessionId: string) {
     setActiveSessionId(sessionId);
@@ -918,28 +1030,59 @@ function ResearchPageInner() {
   return (
     <div className="flex h-[calc(100vh-56px)]">
 
-      {/* ── Left History Sidebar ── */}
+      {/* ── Left History Sidebar (Vani Co-Pilot style: no scrollbar, 5–7 + More, pin/unpin) ── */}
+      {!historyPanelCollapsed && (
       <div
         className="w-64 flex flex-col flex-shrink-0 overflow-hidden"
         style={{ background: 'var(--wo-surface)', borderRight: '1px solid var(--wo-border)' }}
       >
-        {/* New Research button */}
-        <div className="p-3" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+        {/* History header: Clock + "History" + Pin/Unpin (bookmark) */}
+        <div className="px-3 py-2.5 flex items-center justify-between gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+          <div className="flex items-center gap-2 min-w-0">
+            <Clock className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--wo-text-muted)' }} />
+            <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--wo-text)' }}>History</span>
+          </div>
           <button
-            onClick={handleNewChat}
-            className="w-full wo-btn wo-btn-primary text-xs gap-2 justify-center"
+            type="button"
+            onClick={() => setHistoryPinned(!historyPinned)}
+            title={historyPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+            className="p-1.5 rounded-lg transition-colors flex-shrink-0"
+            style={{ color: historyPinned ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }}
           >
-            <Plus className="w-3.5 h-3.5" />
-            New Research
+            <Bookmark className={`w-4 h-4 ${historyPinned ? '' : 'opacity-60'}`} strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* + and < icons only — just the plus, no colored box */}
+        <div className="p-3 flex items-center gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            style={{ color: 'var(--wo-text-muted)', background: 'transparent' }}
+            title="New research"
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-primary)'; (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-text-muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            <Plus className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setHistoryPanelCollapsed(true)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            style={{ color: 'var(--wo-text-muted)', background: 'var(--wo-surface-2)' }}
+            title="Collapse history"
+          >
+            <ChevronLeft className="w-4 h-4" />
           </button>
         </div>
 
         {/* Search */}
-        <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+        <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--wo-text-muted)' }} />
             <input
-              className="wo-input pl-8 text-xs py-1.5"
+              className="wo-input pl-8 text-xs py-1.5 w-full"
               placeholder="Search history…"
               value={historySearch}
               onChange={e => setHistorySearch(e.target.value)}
@@ -952,62 +1095,90 @@ function ResearchPageInner() {
           </div>
         </div>
 
-        {/* Session List */}
-        <div className="flex-1 overflow-y-auto py-2">
+        {/* Recent label */}
+        <div className="px-3 pt-2 pb-1 flex-shrink-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--wo-text-muted)' }}>Recent</p>
+        </div>
+
+        {/* Session list: no scrollbar, show 5–7 then "... More" */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 hide-scrollbar">
           {researchHistory.length === 0 && (
-            <div className="text-center py-10 px-4">
-              <Clock className="w-6 h-6 mx-auto mb-2" style={{ color: 'var(--wo-text-muted)' }} />
+            <div className="text-center py-8 px-4">
+              <Newspaper className="w-6 h-6 mx-auto mb-2" style={{ color: 'var(--wo-text-muted)' }} />
               <p className="text-xs" style={{ color: 'var(--wo-text-muted)' }}>No research yet.</p>
             </div>
           )}
-          {filteredHistory.length === 0 && researchHistory.length > 0 && (
-            <p className="text-xs text-center py-6 px-3" style={{ color: 'var(--wo-text-muted)' }}>
+          {flatHistoryList.length === 0 && researchHistory.length > 0 && (
+            <p className="text-xs text-center py-4 px-3" style={{ color: 'var(--wo-text-muted)' }}>
               No sessions match &quot;{historySearch}&quot;
             </p>
           )}
-          {(['Today', 'Yesterday', 'This Week', 'Earlier'] as const).map(group => {
-            const sessions = groupedHistory[group];
-            if (!sessions.length) return null;
+          {visibleHistory.map((session, idx) => {
+            const badge = getBadge(session.name);
+            const isActive = session.id === activeSessionId;
+            const showGroupHeader = session._groupTitle && (idx === 0 || visibleHistory[idx - 1]._groupTitle !== session._groupTitle);
             return (
-              <div key={group} className="mb-3">
-                <p className="text-[10px] font-semibold uppercase px-3 mb-1" style={{ color: 'var(--wo-text-muted)' }}>{group}</p>
-                {sessions.map(session => {
-                  const badge = getBadge(session.name);
-                  const isActive = session.id === activeSessionId;
-                  return (
-                    <button
-                      key={session.id}
-                      onClick={() => loadSessionById(session.id)}
-                      className="w-full text-left px-3 py-2 transition-all"
-                      style={{
-                        background: isActive ? 'rgba(0,217,255,0.08)' : 'transparent',
-                        borderLeft: isActive ? '2px solid var(--wo-primary)' : '2px solid transparent',
-                      }}
-                      onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; }}
-                      onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                    >
-                      <div className="flex items-start gap-1.5">
-                        <Newspaper className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: isActive ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate leading-tight" style={{ color: isActive ? 'var(--wo-primary)' : 'var(--wo-text)' }}>
-                            {session.name}
-                          </p>
-                          {badge && (
-                            <span className="inline-block mt-0.5 text-[9px] px-1 py-0.5 rounded font-medium"
-                              style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>
-                              {badge}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div key={session.id}>
+                {showGroupHeader && (
+                  <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider truncate" style={{ color: 'var(--wo-text-muted)' }}>
+                    {session._groupTitle}
+                  </p>
+                )}
+                <button
+                  onClick={() => loadSessionById(session.id)}
+                  className="w-full text-left px-3 py-2 transition-all rounded-lg mx-1"
+                  style={{
+                    background: isActive ? 'rgba(0,217,255,0.08)' : 'transparent',
+                    borderLeft: isActive ? '2px solid var(--wo-primary)' : '2px solid transparent',
+                  }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                >
+                  <div className="flex items-start gap-1.5">
+                    <Newspaper className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: isActive ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate leading-tight" style={{ color: isActive ? 'var(--wo-primary)' : 'var(--wo-text)' }}>
+                        {session.name}
+                      </p>
+                      {badge && (
+                        <span className="inline-block mt-0.5 text-[9px] px-1 py-0.5 rounded font-medium"
+                          style={{ background: 'rgba(0,217,255,0.15)', color: 'var(--wo-primary)', border: '1px solid rgba(0,217,255,0.25)' }}>
+                          {badge}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
               </div>
             );
           })}
+          {hasMoreHistory && (
+            <button
+              type="button"
+              onClick={() => setHistoryVisibleCount((n) => n + 5)}
+              className="w-full px-3 py-2 text-left text-xs rounded-lg mx-1 transition-colors"
+              style={{ color: 'var(--wo-text-muted)' }}
+            >
+              … More
+            </button>
+          )}
         </div>
       </div>
+      )}
+
+      {/* Collapsed: show strip to expand history */}
+        {/* Collapsed: only chevron (Image 3 style — no "History" text) */}
+      {historyPanelCollapsed && (
+        <button
+          type="button"
+          onClick={() => setHistoryPanelCollapsed(false)}
+          className="flex-shrink-0 w-9 flex items-center justify-center py-4 border-r transition-colors rounded-r"
+          style={{ background: 'var(--wo-surface-2)', borderColor: 'var(--wo-border)', color: 'var(--wo-primary)' }}
+          title="Show history"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      )}
 
       {/* ── Main Content ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -1034,99 +1205,126 @@ function ResearchPageInner() {
           )}
         </div>
 
-        {/* ── Empty State — input centered in page ── */}
+        {/* ── Empty State: full-width 2x3 prompt grid (SPARK-style) + landing animations ── */}
         {!hasMessages && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-2xl mx-auto px-6 flex flex-col min-h-full justify-center py-10">
-
-              {/* Title */}
-              <div className="text-center mb-8">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-violet-500 via-cyan-400 to-cyan-300 bg-clip-text text-transparent mb-2">
-                  When Research Meets AI. Productivity Soars.
-                </h1>
-                <p className="text-sm" style={{ color: 'var(--wo-text-muted)' }}>
-                  Ask Vivek anything — follow up as many times as you need.
-                </p>
-              </div>
-
-              {/* ── Centered Input ── */}
-              <div className="wo-card p-3 mb-8" style={{
-                border: '1px solid rgba(0,217,255,0.18)',
-                borderRadius: '18px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,217,255,0.06), 0 2px 16px rgba(0,217,255,0.08)',
-              }}>
-                <textarea
-                  ref={textareaRef}
-                  placeholder="Ask anything…"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={loading}
-                  className="w-full resize-none border-none outline-none text-sm"
-                  style={{ background: 'transparent', color: 'var(--wo-text)', minHeight: '52px', maxHeight: '160px', overflowY: 'auto' }}
-                  rows={2}
-                />
-                <div className="flex items-center justify-between pt-2 mt-1" style={{ borderTop: '1px solid var(--wo-border)' }}>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => router.push('/home/documents')} className="wo-btn wo-btn-ghost text-xs gap-1 py-1" title="Upload documents" disabled={loading}>
-                      <Plus className="w-3.5 h-3.5" /> Add Data Sources
-                    </button>
-                    <button onClick={() => router.push('/home/opportunities')} className="wo-btn wo-btn-ghost text-xs gap-1 py-1" title="Go to Opportunities" disabled={loading}>
-                      <FileText className="w-3.5 h-3.5" /> Opportunity
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-                      style={{ background: 'rgba(0,217,255,0.08)', color: 'var(--wo-primary)', border: '1px solid rgba(0,217,255,0.2)' }}>
-                      <Globe className="w-3.5 h-3.5" /> Web Search
-                    </span>
-                    {micSupported && (
-                      <div className="relative">
-                        {micListening && <span className="vani-mic-ring" />}
-                        <button
-                          onClick={micListening ? stopListening : startListening}
-                          disabled={loading}
-                          className={`p-2 rounded-xl transition-all disabled:opacity-40 ${micListening ? 'vani-mic-recording' : ''}`}
-                          style={micListening ? { background: '#ef4444', color: '#fff' } : { background: 'var(--wo-surface-2)', color: 'var(--wo-text-muted)' }}
-                          title={micListening ? 'Stop recording' : 'Speak your query'}
-                        >
-                          {micListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    )}
-                    <button onClick={() => sendMessage(input)} disabled={!input.trim() || loading}
-                      className="wo-btn wo-btn-primary p-2 rounded-xl disabled:opacity-40" title="Send (Enter)">
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
+          <>
+            <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden research-landing">
+              <div className="min-w-0 w-full max-w-6xl mx-auto px-6 py-6">
+                {/* Title — animate in first; tiles sit close below subtitle */}
+                <div className="research-hero text-center mb-4">
+                  <h1 key={heroIndex} className="research-hero-rotate-in text-2xl sm:text-3xl font-bold bg-gradient-to-r from-violet-500 via-cyan-400 to-cyan-300 bg-clip-text text-transparent mb-2">
+                    {RESEARCH_HERO_VARIANTS[heroIndex].heading}
+                  </h1>
+                  <p key={`sub-${heroIndex}`} className="research-hero-rotate-in sub-delay text-sm" style={{ color: 'var(--wo-text-muted)' }}>
+                    {RESEARCH_HERO_VARIANTS[heroIndex].subheading}
+                  </p>
                 </div>
-                {micListening && (
-                  <p className="text-xs mt-1 text-center" style={{ color: '#ef4444' }}>Listening… speak now, then click the mic to stop</p>
-                )}
-                {micError && (
-                  <p className="text-xs mt-1 text-center" style={{ color: '#ef4444' }}>{micError}</p>
-                )}
-              </div>
 
-              {/* Templates */}
-              <h2 className="text-center font-semibold mb-4 text-sm" style={{ color: 'var(--wo-text-muted)' }}>
-                Templates
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {RESEARCH_TEMPLATES.map((tmpl) => (
-                  <div
-                    key={tmpl.id}
-                    onClick={() => { setInput(tmpl.query); setTimeout(() => textareaRef.current?.focus(), 50); }}
-                    className={`rounded-2xl p-4 cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.99] bg-gradient-to-br ${tmpl.gradient} text-white shadow-md`}
-                  >
-                    <h3 className="font-bold text-sm mb-1">{tmpl.title}</h3>
-                    <p className="text-xs text-white/80 leading-relaxed">{tmpl.description}</p>
-                  </div>
-                ))}
+                {/* 2x3 prompt grid — no "Prompts" label */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {RESEARCH_TEMPLATES.map((tmpl) => {
+                    const accentStyles: Record<string, { iconBg: string; iconColor: string; cardBorder: string; cardBg: string; cardHover: string }> = {
+                      violet:  { iconBg: 'rgba(139,92,246,0.2)', iconColor: '#a78bfa', cardBorder: 'rgba(139,92,246,0.3)', cardBg: 'rgba(139,92,246,0.06)', cardHover: 'rgba(139,92,246,0.12)' },
+                      cyan:     { iconBg: 'rgba(0,217,255,0.15)', iconColor: 'var(--wo-primary)', cardBorder: 'rgba(0,217,255,0.25)', cardBg: 'rgba(0,217,255,0.04)', cardHover: 'rgba(0,217,255,0.1)' },
+                      emerald: { iconBg: 'rgba(16,185,129,0.2)', iconColor: '#34d399', cardBorder: 'rgba(16,185,129,0.3)', cardBg: 'rgba(16,185,129,0.06)', cardHover: 'rgba(16,185,129,0.12)' },
+                      orange:  { iconBg: 'rgba(249,115,22,0.2)', iconColor: '#fb923c', cardBorder: 'rgba(249,115,22,0.3)', cardBg: 'rgba(249,115,22,0.06)', cardHover: 'rgba(249,115,22,0.12)' },
+                      pink:    { iconBg: 'rgba(236,72,153,0.2)', iconColor: '#f472b6', cardBorder: 'rgba(236,72,153,0.3)', cardBg: 'rgba(236,72,153,0.06)', cardHover: 'rgba(236,72,153,0.12)' },
+                      amber:   { iconBg: 'rgba(245,158,11,0.2)', iconColor: '#fbbf24', cardBorder: 'rgba(245,158,11,0.3)', cardBg: 'rgba(245,158,11,0.06)', cardHover: 'rgba(245,158,11,0.12)' },
+                    };
+                    const s = accentStyles[tmpl.accent] ?? accentStyles.cyan;
+                    const Icon = tmpl.Icon;
+                    return (
+                      <button
+                        key={tmpl.id}
+                        type="button"
+                        onClick={() => { setInput(tmpl.prompt); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                        className="research-prompt-card text-left rounded-xl border p-5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.99]"
+                        style={{
+                          background: s.cardBg,
+                          borderColor: s.cardBorder,
+                          color: 'var(--wo-text)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = s.cardHover; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = s.cardBg; }}
+                      >
+                        <div
+                          className="flex h-11 w-11 items-center justify-center rounded-xl mb-3"
+                          style={{ background: s.iconBg, color: s.iconColor }}
+                        >
+                          <Icon className="h-5 w-5" aria-hidden />
+                        </div>
+                        <h3 className="font-semibold text-sm mb-1.5" style={{ color: 'var(--wo-text)' }}>{tmpl.title}</h3>
+                        <p className="text-xs leading-relaxed" style={{ color: 'var(--wo-text-muted)' }}>{tmpl.prompt}</p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-
             </div>
-          </div>
+
+            {/* Fixed chat input — same height/size as when in conversation */}
+            <div className="flex-shrink-0 px-6 pb-5 pt-0 relative">
+              <div className="max-w-3xl mx-auto relative">
+                <div className="wo-card p-3" style={{
+                  border: '1px solid rgba(0,217,255,0.18)',
+                  borderRadius: '18px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,217,255,0.06), 0 2px 16px rgba(0,217,255,0.08)',
+                }}>
+                  <textarea
+                    ref={textareaRef}
+                    placeholder="Ask anything… or pick a prompt above"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={loading}
+                    className="w-full resize-none border-none outline-none text-sm"
+                    style={{ background: 'transparent', color: 'var(--wo-text)', minHeight: '44px', maxHeight: '160px', overflowY: 'auto' }}
+                    rows={1}
+                  />
+                  <div className="flex items-center justify-between pt-2 mt-1" style={{ borderTop: '1px solid var(--wo-border)' }}>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => router.push('/home/documents')} className="wo-btn wo-btn-ghost text-xs gap-1 py-1" title="Upload documents" disabled={loading}>
+                        <Plus className="w-3.5 h-3.5" /> Add Data Sources
+                      </button>
+                      <button onClick={() => router.push('/home/opportunities')} className="wo-btn wo-btn-ghost text-xs gap-1 py-1" title="Go to Opportunities" disabled={loading}>
+                        <FileText className="w-3.5 h-3.5" /> Opportunity
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                        style={{ background: 'rgba(0,217,255,0.08)', color: 'var(--wo-primary)', border: '1px solid rgba(0,217,255,0.2)' }}>
+                        <Globe className="w-3.5 h-3.5" /> Web Search
+                      </span>
+                      {micSupported && (
+                        <div className="relative">
+                          {micListening && <span className="vani-mic-ring" />}
+                          <button
+                            onClick={micListening ? stopListening : startListening}
+                            disabled={loading}
+                            className={`p-2 rounded-xl transition-all disabled:opacity-40 ${micListening ? 'vani-mic-recording' : ''}`}
+                            style={micListening ? { background: '#ef4444', color: '#fff' } : { background: 'var(--wo-surface-2)', color: 'var(--wo-text-muted)' }}
+                            title={micListening ? 'Stop recording' : 'Speak your query'}
+                          >
+                            {micListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      )}
+                      <button onClick={() => sendMessage(input)} disabled={!input.trim() || loading}
+                        className="wo-btn wo-btn-primary p-2 rounded-xl disabled:opacity-40" title="Send (Enter)">
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  {micListening && (
+                    <p className="text-xs mt-1 text-center" style={{ color: '#ef4444' }}>Listening… speak now, then click the mic to stop</p>
+                  )}
+                  {micError && (
+                    <p className="text-xs mt-1 text-center" style={{ color: '#ef4444' }}>{micError}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
         {/* ── Chat Thread ── */}
@@ -1147,22 +1345,22 @@ function ResearchPageInner() {
               <div ref={bottomRef} />
             </div>
 
-            {/* Scroll-to-bottom button */}
+            {/* Scroll-to-bottom: circular down arrow (Vani Co-Pilot style) */}
             {showScrollBtn && (
               <button
                 onClick={scrollToBottom}
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-all"
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full flex items-center justify-center transition-all"
                 style={{
                   background: 'var(--wo-surface)',
                   border: '1px solid rgba(0,217,255,0.25)',
                   color: 'var(--wo-text-muted)',
                   boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
                 }}
+                title="Scroll to bottom"
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-primary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--wo-primary)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-text-muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,217,255,0.25)'; }}
               >
-                <ChevronDown className="w-3.5 h-3.5" />
-                Scroll to bottom
+                <ChevronDown className="w-5 h-5" />
               </button>
             )}
           </div>

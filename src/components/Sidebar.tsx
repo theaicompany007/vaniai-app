@@ -43,8 +43,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const isActive = (href: string) =>
     href === '/home' ? pathname === '/home' : pathname.startsWith(href);
 
-  // Cyan primary: dark theme = #00d9ff, light theme = #0099b8
-  const activeCyan = theme === 'dark' ? '#00d9ff' : '#0099b8';
+  // Cyan primary: dark = #00d9ff, light = var(--wo-primary) e.g. #0891b2
+  const activeCyan = theme === 'dark' ? '#00d9ff' : 'var(--wo-primary)';
   const mutedColor = 'var(--wo-text-muted)';
 
   return (

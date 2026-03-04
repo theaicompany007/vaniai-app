@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, X, Pencil, ExternalLink, Trash2, Users, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import DataTable from '@/components/DataTable';
@@ -40,11 +41,14 @@ const INDUSTRIES = [
   'FMCG', 'Banking', 'Healthcare', 'Retail', 'Manufacturing',
   'Technology', 'E-commerce', 'Automotive', 'Telecom', 'Education',
   'Insurance', 'Pharma', 'Logistics', 'Media',
+  'Paints & Coatings',
 ];
 
 const EMPTY_FORM = { name: '', account: '', account_id: '', owner: '', stage: 'Discovery', industry: '', people: '' };
 
-export default function OpportunitiesPage() {
+function OpportunitiesPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +77,39 @@ export default function OpportunitiesPage() {
       .then((d) => { if (Array.isArray(d)) setAccounts(d); })
       .catch(() => {});
   }, []);
+
+  // Prefill and open Add Opportunity modal when arriving from Playbook (?new=1&account=...&industry=...)
+  useEffect(() => {
+    const newParam = searchParams.get('new');
+    const accountParam = searchParams.get('account');
+    if (newParam !== '1' || !accountParam?.trim()) return;
+    const industryParam = searchParams.get('industry')?.trim() ?? '';
+    setEditingOpp(null);
+    setForm({
+      name:       accountParam.trim(),
+      account:    accountParam.trim(),
+      account_id: '',
+      owner:     '',
+      stage:     'Discovery',
+      industry:   industryParam,
+      people:    '',
+    });
+    setFormError('');
+    setShowModal(true);
+    router.replace('/home/opportunities', { scroll: false });
+  }, [searchParams, router]);
+
+  // After prefill from Playbook, resolve account_id once accounts are loaded so the dropdown shows the right selection
+  useEffect(() => {
+    if (!showModal || !form.account.trim() || form.account_id || accounts.length === 0) return;
+    const matched = accounts.find(
+      (a) => a.name.toLowerCase().includes(form.account.toLowerCase()) ||
+             form.account.toLowerCase().includes(a.name.toLowerCase())
+    );
+    if (matched) {
+      setForm((f) => ({ ...f, account_id: matched.id, industry: f.industry || (matched.industry ?? '') }));
+    }
+  }, [showModal, form.account, form.account_id, form.industry, accounts]);
 
 
   const now = new Date();
@@ -451,6 +488,13 @@ export default function OpportunitiesPage() {
                     </button>
                   ))}
                 </div>
+                <p className="text-[11px] mt-1.5 mb-0.5" style={{ color: 'var(--wo-text-muted)' }}>Or enter custom:</p>
+                <input
+                  className="wo-input text-sm"
+                  placeholder="e.g. Paints & Coats, Real Estate"
+                  value={INDUSTRIES.includes(form.industry) ? '' : form.industry}
+                  onChange={(e) => setForm({ ...form, industry: e.target.value.trim() })}
+                />
               </div>
 
               <div>
@@ -480,5 +524,24 @@ export default function OpportunitiesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function OpportunitiesPageFallback() {
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="animate-pulse flex flex-col gap-4">
+        <div className="h-8 rounded w-1/3" style={{ background: 'var(--wo-surface-2)' }} />
+        <div className="h-64 rounded-2xl" style={{ background: 'var(--wo-surface-2)' }} />
+      </div>
+    </div>
+  );
+}
+
+export default function OpportunitiesPage() {
+  return (
+    <Suspense fallback={<OpportunitiesPageFallback />}>
+      <OpportunitiesPageContent />
+    </Suspense>
   );
 }

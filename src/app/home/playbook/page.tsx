@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   usePlaybook, STEP_ORDER, type StepId,
 } from '@/context/PlaybookContext';
+import PlaybookStartModal from '@/components/PlaybookStartModal';
 import {
   CheckCircle2, Circle, ChevronRight, ExternalLink,
   RefreshCw, Trophy, RotateCcw, Building2, FlaskConical,
@@ -97,7 +98,7 @@ const STEP_DEFS: StepDef[] = [
     title: 'Create Opportunity',
     description: 'Add this company to your pipeline at the Discovery stage.',
     icon: Target,
-    href: () => `/home/opportunities`,
+    href: (c, ind) => `/home/opportunities?new=1&account=${encodeURIComponent(c)}${ind ? `&industry=${encodeURIComponent(ind)}` : ''}`,
     actionLabel: 'Add to Pipeline →',
     storyLine: (c) => `**${c}** entered your Discovery pipeline — the deal is now officially in motion.`,
     autoDetect: async (c) => {
@@ -391,7 +392,7 @@ function ActionPanel({
 
 // ─── Celebration ──────────────────────────────────────────────────────────────
 
-function Celebration({ company, onReset }: { company: string; onReset: () => void }) {
+function Celebration({ company, onReset, onViewPlaybook }: { company: string; onReset: () => void; onViewPlaybook?: () => void }) {
   const router = useRouter();
   return (
     <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -404,7 +405,14 @@ function Celebration({ company, onReset }: { company: string; onReset: () => voi
         You completed the full sales play for
       </p>
       <p className="text-base font-bold mb-6" style={{ color: 'var(--wo-primary)' }}>{company}</p>
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3 justify-center">
+        {onViewPlaybook && (
+          <button onClick={onViewPlaybook} className="wo-btn wo-btn-primary flex items-center gap-2"
+            style={{ background: 'rgba(0,217,255,0.12)', border: '1px solid rgba(0,217,255,0.3)', color: 'var(--wo-primary)' }}>
+            <Map className="w-3.5 h-3.5" />
+            View Playbook
+          </button>
+        )}
         <button onClick={() => router.push('/home/pipeline')} className="wo-btn wo-btn-primary flex items-center gap-2">
           <LayoutGrid className="w-3.5 h-3.5" />
           View Pipeline
@@ -422,10 +430,11 @@ function Celebration({ company, onReset }: { company: string; onReset: () => voi
 
 export default function PlaybookPage() {
   const router = useRouter();
-  const { playbook, markDone, markPending, reset, activeStep, completedCount } = usePlaybook();
+  const { playbook, startPlaybook, markDone, markPending, reset, activeStep, completedCount } = usePlaybook();
   const [viewingStep, setViewingStep] = useState<StepId | null>(null);
   const [detecting, setDetecting] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [viewingCompletedPlaybook, setViewingCompletedPlaybook] = useState(false);
 
   const doneSteps = playbook
     ? (Object.entries(playbook.steps).filter(([, v]) => v === 'done').map(([k]) => k as StepId))
@@ -504,7 +513,7 @@ export default function PlaybookPage() {
             </div>
           )}
           <button
-            onClick={() => setShowResetConfirm(true)}
+            onClick={() => setShowStartModal(true)}
             className="wo-btn wo-btn-ghost text-xs flex items-center gap-1.5"
           >
             <RotateCcw className="w-3 h-3" />
@@ -542,14 +551,27 @@ export default function PlaybookPage() {
       </div>
 
       {/* ── Two-column layout ──────────────────────────────────── */}
-      {allDone ? (
+      {allDone && !viewingCompletedPlaybook ? (
         <div className="flex-1 wo-card overflow-hidden">
-          <Celebration company={company} onReset={() => { reset(); router.push('/home'); }} />
+          <Celebration
+            company={company}
+            onReset={() => { reset(); router.push('/home'); }}
+            onViewPlaybook={() => setViewingCompletedPlaybook(true)}
+          />
         </div>
       ) : (
         <div className="flex-1 grid gap-4 min-h-0" style={{ gridTemplateColumns: '1fr 1fr' }}>
           {/* Story Panel */}
           <div className="wo-card overflow-y-auto p-5">
+            {allDone && viewingCompletedPlaybook && (
+              <button
+                onClick={() => setViewingCompletedPlaybook(false)}
+                className="wo-btn wo-btn-ghost text-xs mb-3 flex items-center gap-1.5"
+                style={{ color: 'var(--wo-text-muted)' }}
+              >
+                ← Back to summary
+              </button>
+            )}
             <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: 'var(--wo-text-muted)' }}>
               Your Story So Far
             </p>
@@ -560,7 +582,7 @@ export default function PlaybookPage() {
           {/* Action Panel */}
           <div className="wo-card overflow-y-auto p-5">
             <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: 'var(--wo-text-muted)' }}>
-              {viewingStep && viewingStep !== activeStep ? 'Step Details' : 'Your Next Move'}
+              {allDone && viewingCompletedPlaybook ? 'Step Details' : (viewingStep && viewingStep !== activeStep ? 'Step Details' : 'Your Next Move')}
             </p>
             {panelStep ? (
               <ActionPanel
@@ -609,23 +631,17 @@ export default function PlaybookPage() {
         </div>
       )}
 
-      {/* ── Reset Confirm Modal ────────────────────────────────── */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.65)' }}>
-          <div className="wo-card p-6 max-w-sm w-full mx-4">
-            <h3 className="font-bold text-base mb-2" style={{ color: 'var(--wo-text)' }}>Start New Playbook?</h3>
-            <p className="text-sm mb-5" style={{ color: 'var(--wo-text-muted)' }}>
-              This will clear the current playbook for <strong>{company}</strong>. Your CRM data is not affected.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowResetConfirm(false)} className="flex-1 wo-btn wo-btn-ghost">Cancel</button>
-              <button onClick={() => { reset(); setShowResetConfirm(false); router.push('/home'); }}
-                className="flex-1 wo-btn" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* ── Start new playbook modal (replaces current one) ───────── */}
+      {showStartModal && (
+        <PlaybookStartModal
+          onClose={() => setShowStartModal(false)}
+          existingCompany={company}
+          onStart={(c, i) => {
+            reset();
+            startPlaybook(c, i);
+            setShowStartModal(false);
+          }}
+        />
       )}
     </div>
   );

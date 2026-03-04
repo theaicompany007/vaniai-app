@@ -145,7 +145,7 @@ Start by querying the knowledge base for our capabilities and case studies, then
               title,
               type,
               content,
-              status: 'Draft',
+              status: 'Complete',
               generated_by: 'Varta',
             })
             .select('id, title')

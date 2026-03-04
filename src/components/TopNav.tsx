@@ -5,10 +5,13 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   Settings, Bell, Sun, Moon, HelpCircle, LogOut, X,
-  BookOpen, Flame, FlaskConical, FileText, MessageCircle, ArrowRight, User,
+  BookOpen, Flame, FlaskConical, FileText, MessageCircle, ArrowRight, User, Map,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import { usePlaybook } from '@/context/PlaybookContext';
+
+const PLAYBOOK_CHIP_HIDDEN_KEY = 'vaniai_header_playbook_hidden';
 
 // ─── Workflow steps shown in the Help panel ───────────────────────────────────
 
@@ -68,10 +71,27 @@ const WORKFLOW_STEPS = [
 export default function TopNav() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const { playbook, completedCount } = usePlaybook();
+  const [playbookChipHidden, setPlaybookChipHidden] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      setPlaybookChipHidden(localStorage.getItem(PLAYBOOK_CHIP_HIDDEN_KEY) === '1');
+    } catch {}
+  }, []);
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+
+  const hidePlaybookChip = () => {
+    setPlaybookChipHidden(true);
+    try { localStorage.setItem(PLAYBOOK_CHIP_HIDDEN_KEY, '1'); } catch {}
+  };
+  const showPlaybookChip = () => {
+    setPlaybookChipHidden(false);
+    try { localStorage.removeItem(PLAYBOOK_CHIP_HIDDEN_KEY); } catch {}
+  };
 
   useEffect(() => {
     fetch('/api/auth/session', { credentials: 'include' })
@@ -100,11 +120,11 @@ export default function TopNav() {
     <>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <header
-        className="h-14 flex items-center justify-between px-4 sm:px-6 flex-shrink-0 z-30 gap-3"
+        className="wo-header h-14 flex items-center justify-between pl-0 pr-4 sm:pr-6 flex-shrink-0 z-30 gap-3"
         style={{
           background: 'var(--wo-surface)',
           borderBottom: '1px solid var(--wo-border)',
-          transition: 'background 0.25s ease, border-color 0.2s ease',
+          transition: 'background 0.25s ease, border-color 0.2s ease, box-shadow 0.2s ease',
         }}
       >
         {/* ── Left: logo + title + tagline (Syne font, Co-Pilot style) ─────────── */}
@@ -116,17 +136,72 @@ export default function TopNav() {
             height={32}
             className="object-contain flex-shrink-0"
           />
-          <div className="min-w-0 flex-1">
-            <h1 className="vani-brand-title text-sm font-bold tracking-wide text-white truncate">
+          <div className="min-w-0 flex-1 pb-0.5">
+            <h1 className="vani-brand-title text-sm font-bold tracking-wide truncate" style={{ color: 'var(--wo-text)' }}>
               Vani AI - Sales Intelligence Platform
             </h1>
-            <p className="mt-0.5 text-xs leading-tight">
+            <p className="mt-0 text-xs leading-tight" style={{ color: 'var(--wo-text-muted)' }}>
               <span className="font-bold animate-tagline-glow" style={{ color: 'var(--wo-primary)' }}>
                 Don&apos;t app, just talk.
               </span>
             </p>
           </div>
         </div>
+
+        {/* ── Center/Right: Playbook chip (when active) or Show Playbook ───── */}
+        {playbook && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {playbookChipHidden ? (
+              <button
+                type="button"
+                onClick={showPlaybookChip}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                style={{
+                  background: 'rgba(0,217,255,0.08)',
+                  border: '1px solid rgba(0,217,255,0.2)',
+                  color: 'var(--wo-primary)',
+                }}
+                title="Show Playbook chip"
+              >
+                <Map className="w-3.5 h-3.5" />
+                Show Playbook
+              </button>
+            ) : (
+              <div
+                className="flex items-center gap-2 pl-2.5 pr-1 py-1.5 rounded-full"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(0,217,255,0.12), rgba(139,92,246,0.1))',
+                  border: '1px solid rgba(0,217,255,0.3)',
+                  color: 'var(--wo-primary)',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push('/home/playbook')}
+                  className="flex items-center gap-1.5 text-xs font-medium"
+                >
+                  <Map className="w-3.5 h-3.5" />
+                  <span className="truncate max-w-[120px]">{playbook.company} Playbook</span>
+                  <span
+                    className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                    style={{ background: 'rgba(0,217,255,0.2)', color: 'var(--wo-primary)' }}
+                  >
+                    {completedCount}/7
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); hidePlaybookChip(); }}
+                  className="p-1 rounded-full hover:bg-black/10 transition-colors"
+                  title="Hide Playbook chip"
+                  aria-label="Hide"
+                >
+                  <X className="w-3.5 h-3.5" style={{ color: 'var(--wo-text-muted)' }} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Right: user info + icon row ─────────────────────────────────── */}
         <div className="flex items-center gap-3 flex-shrink-0">

@@ -19,22 +19,25 @@
   --wo-hover-btn:     rgba(255, 255, 255, 0.06);
 }
 
-/* ===== Light Theme Overrides ===== */
+/* ===== Light Theme Overrides (world-class contrast & depth) ===== */
 html.light-theme {
-  --wo-primary:       #0099b8;
-  --wo-primary-dark:  #007a94;
+  --wo-primary:       #0891b2;
+  --wo-primary-dark:  #0e7490;
   --wo-accent:        #059669;
-  --wo-bg:            #f5f7fa;
+  --wo-bg:            #f1f5f9;
   --wo-surface:       #ffffff;
-  --wo-surface-2:     #f0f4f8;
-  --wo-border:        #e2e8f0;
+  --wo-surface-2:     #f8fafc;
+  --wo-border:        #cbd5e1;
   --wo-text:          #0f172a;
-  --wo-text-muted:    #64748b;
+  --wo-text-muted:    #475569;
   --wo-sidebar-bg:    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   --wo-gradient-hero: linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #1e40af 70%, #0f2044 100%);
-  --wo-cyan-glow:     rgba(0, 153, 184, 0.12);
-  --wo-hover-row:     rgba(0, 0, 0, 0.02);
-  --wo-hover-btn:     rgba(0, 0, 0, 0.05);
+  --wo-cyan-glow:     rgba(8, 145, 178, 0.14);
+  --wo-hover-row:     rgba(15, 23, 42, 0.03);
+  --wo-hover-btn:     rgba(15, 23, 42, 0.06);
+  --wo-shadow-sm:    0 1px 2px rgba(15, 23, 42, 0.05);
+  --wo-shadow-card:  0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --wo-shadow-card-hover: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
 }
 
 /* ===== Base ===== */
@@ -53,10 +56,8 @@ html, body {
   letter-spacing: 0.02em;
 }
 
-/* Syne descenders (g, y, etc.) need extra line-height so they don't clip */
 .vani-brand-title {
   line-height: 1.65;
-  padding-bottom: 3px;
 }
 
 @keyframes tagline-glow {
@@ -67,8 +68,64 @@ html, body {
   animation: tagline-glow 2.5s ease-in-out infinite;
 }
 
+/* Research landing — SPARK-style stagger fade-in-up */
+@keyframes research-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.research-landing .research-hero {
+  opacity: 0;
+  animation: research-fade-in-up 0.6s ease-out forwards;
+}
+.research-landing .research-hero-sub {
+  animation-delay: 0.12s;
+}
+.research-landing .research-prompt-card {
+  opacity: 0;
+  animation: research-fade-in-up 0.5s ease-out forwards;
+}
+.research-landing .research-prompt-card:nth-child(1) { animation-delay: 0.1s; }
+.research-landing .research-prompt-card:nth-child(2) { animation-delay: 0.18s; }
+.research-landing .research-prompt-card:nth-child(3) { animation-delay: 0.26s; }
+.research-landing .research-prompt-card:nth-child(4) { animation-delay: 0.34s; }
+.research-landing .research-prompt-card:nth-child(5) { animation-delay: 0.42s; }
+.research-landing .research-prompt-card:nth-child(6) { animation-delay: 0.5s; }
+
+/* Research hero rotating tagline — fade-in when text changes */
+@keyframes research-hero-rotate-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.research-hero-rotate-in {
+  animation: research-hero-rotate-in 0.45s ease-out forwards;
+}
+.research-hero-rotate-in.sub-delay {
+  animation-delay: 0.08s;
+  opacity: 0;
+}
+
 /* ===== Scrollbar ===== */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
+/* Hide scrollbar in history panels (Vani Co-Pilot style) */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #2a2a3e; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #3a3a52; }
@@ -78,11 +135,19 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 /* ===== Component Classes (inside @layer so utilities can override) ===== */
 @layer components {
 
+  /* ── Header (light: subtle elevation) ── */
+  html.light-theme .wo-header {
+    box-shadow: var(--wo-shadow-sm);
+  }
+
   /* ── Sidebar ── */
   .wo-sidebar {
     background: var(--wo-sidebar-bg);
     border-right: 1px solid var(--wo-border);
     transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  html.light-theme .wo-sidebar {
+    box-shadow: 2px 0 8px rgba(15, 23, 42, 0.04);
   }
 
   .wo-sidebar-icon {
@@ -92,19 +157,19 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     background: rgba(0, 217, 255, 0.08);
   }
   html.light-theme .wo-sidebar-icon:hover {
-    background: rgba(0, 153, 184, 0.08);
+    background: rgba(8, 145, 178, 0.08);
   }
   .wo-sidebar-icon.active {
     background: rgba(0, 217, 255, 0.15);
   }
   html.light-theme .wo-sidebar-icon.active {
-    background: rgba(0, 153, 184, 0.12);
+    background: rgba(8, 145, 178, 0.12);
   }
   .wo-sidebar-icon.active svg {
     color: #00d9ff !important;
   }
   html.light-theme .wo-sidebar-icon.active svg {
-    color: #0099b8 !important;
+    color: var(--wo-primary) !important;
   }
 
   /* ── Tooltip ── */
@@ -129,7 +194,10 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     background: var(--wo-surface);
     border: 1px solid var(--wo-border);
     @apply rounded-2xl;
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  html.light-theme .wo-card {
+    box-shadow: var(--wo-shadow-card);
   }
 
   /* ── Signal Card ── */
@@ -138,13 +206,16 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     border: 1px solid var(--wo-border);
     @apply rounded-2xl p-5 transition-all duration-200;
   }
+  html.light-theme .wo-signal-card {
+    box-shadow: var(--wo-shadow-card);
+  }
   .wo-signal-card:hover {
     border-color: rgba(0, 217, 255, 0.25);
     box-shadow: 0 0 0 1px rgba(0, 217, 255, 0.1), 0 4px 24px rgba(0, 0, 0, 0.4);
   }
   html.light-theme .wo-signal-card:hover {
-    border-color: rgba(0, 153, 184, 0.25);
-    box-shadow: 0 0 0 1px rgba(0, 153, 184, 0.1), 0 4px 24px rgba(0, 0, 0, 0.08);
+    border-color: rgba(8, 145, 178, 0.35);
+    box-shadow: var(--wo-shadow-card-hover), 0 0 0 1px rgba(8, 145, 178, 0.12);
   }
 
   /* ── Hero Gradient ── */
@@ -172,9 +243,9 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     border-color: rgba(0, 217, 255, 0.2);
   }
   html.light-theme .wo-tag-blue {
-    background: rgba(0, 153, 184, 0.08);
-    color: #0099b8;
-    border-color: rgba(0, 153, 184, 0.2);
+    background: rgba(8, 145, 178, 0.1);
+    color: var(--wo-primary);
+    border-color: rgba(8, 145, 178, 0.25);
   }
   .wo-tag-green {
     background: rgba(52, 211, 153, 0.08);
@@ -226,12 +297,12 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     box-shadow: 0 0 24px rgba(0, 217, 255, 0.4);
   }
   html.light-theme .wo-btn-primary {
-    background: linear-gradient(135deg, #0099b8, #007a94);
-    box-shadow: 0 0 16px rgba(0, 153, 184, 0.2);
+    background: linear-gradient(135deg, var(--wo-primary), var(--wo-primary-dark));
+    box-shadow: 0 0 16px rgba(8, 145, 178, 0.22);
   }
   html.light-theme .wo-btn-primary:hover {
-    background: linear-gradient(135deg, #00b8d9, #0099b8);
-    box-shadow: 0 0 24px rgba(0, 153, 184, 0.35);
+    background: linear-gradient(135deg, #0e7490, var(--wo-primary));
+    box-shadow: 0 0 24px rgba(8, 145, 178, 0.35);
   }
   .wo-btn-outline {
     border: 1px solid rgba(0, 217, 255, 0.35);
@@ -284,7 +355,7 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   /* ── Table ── */
   .wo-table { @apply w-full text-sm; }
   .wo-table thead { background: rgba(0, 217, 255, 0.04); }
-  html.light-theme .wo-table thead { background: rgba(0, 153, 184, 0.04); }
+  html.light-theme .wo-table thead { background: rgba(8, 145, 178, 0.06); }
   .wo-table th {
     @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider;
     color: var(--wo-text-muted);
@@ -301,7 +372,7 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     @apply flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors duration-150;
   }
   .wo-quick-action:hover { background: rgba(0, 217, 255, 0.06); }
-  html.light-theme .wo-quick-action:hover { background: rgba(0, 153, 184, 0.06); }
+  html.light-theme .wo-quick-action:hover { background: rgba(8, 145, 178, 0.08); }
 
   /* ── Input ── */
   .wo-input {
@@ -317,8 +388,8 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1);
   }
   html.light-theme .wo-input:focus {
-    border-color: rgba(0, 153, 184, 0.4);
-    box-shadow: 0 0 0 3px rgba(0, 153, 184, 0.1);
+    border-color: rgba(8, 145, 178, 0.5);
+    box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.12);
   }
 
   /* ── Credits Badge ── */

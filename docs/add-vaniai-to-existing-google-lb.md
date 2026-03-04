@@ -203,8 +203,9 @@ If the site returns "The server encountered a temporary error" or 502:
    ```
    Ensure `chroma-vm` has tag `allow-health-check`.
 
-2. **Health check path**  
-   The backend health check uses **`/api/health`** (returns 200). The app exposes `GET /api/health` for this.
+2. **Health check path must return HTTP 200**  
+   GCP HTTP health checks treat **only 200 OK as healthy**; redirects (301, 302, 307) are **unhealthy**. Use **`/api/health`** (the app returns 200). Set:  
+   `gcloud compute health-checks update http vaniai-http-health --request-path=/api/health --project=onlynereputation-agentic`
 
 3. **Backend health in Console**  
    In **Network services → Load balancing → your LB → Backend configuration**, confirm `vaniai-backend` shows as **Healthy**. If it stays unhealthy, the LB will not send traffic and may return 502.

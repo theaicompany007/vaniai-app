@@ -120,36 +120,66 @@ export async function POST(req: Request) {
   const { ctx, response } = await requireAuth();
   if (!ctx) return response!;
 
-  const { message, agent = 'Vidya' } = await req.json();
+  const { message, agent = 'Vidya', attachmentContext, session_id: sessionIdParam } = await req.json();
   if (!message?.trim()) return NextResponse.json({ error: 'Missing message' }, { status: 400 });
+
+  const userContent =
+    typeof attachmentContext === 'string' && attachmentContext.trim()
+      ? `The user has attached the following for context. Use it when answering their question.\n\n---\n${attachmentContext.trim()}\n---\n\nUser message: ${message.trim()}`
+      : message.trim();
 
   const admin = getSupabaseAdmin();
   const supabase = await getSupabaseServer();
+
+  let sessionId: string | null = sessionIdParam || null;
+  try {
+    if (!sessionId) {
+      const { data: newSession, error: sessionErr } = await admin
+        .from('chat_sessions')
+        .insert({
+          org_id: ctx.orgId,
+          agent,
+          name: (message as string).trim().slice(0, 80) || 'Chat',
+        })
+        .select('id')
+        .single();
+      if (!sessionErr && newSession?.id) sessionId = newSession.id;
+    }
+  } catch {
+    sessionId = null;
+  }
 
   // Load org context and build dynamic system prompt
   const orgContext = await buildOrgContext(ctx.orgId);
   const dynamicSystem = orgContext ? `${SYSTEM_PROMPT}\n\n${orgContext}` : SYSTEM_PROMPT;
 
-  // Load recent conversation history
-  const { data: history } = await supabase
+  // Load recent conversation history (for this session if we have one)
+  let historyQuery = supabase
     .from('chat_messages')
     .select('role, content')
     .eq('org_id', ctx.orgId)
     .eq('agent', agent)
     .order('created_at', { ascending: true })
     .limit(20);
+  if (sessionId) {
+    historyQuery = historyQuery.eq('session_id', sessionId);
+  } else {
+    historyQuery = historyQuery.is('session_id', null);
+  }
+  const { data: history } = await historyQuery;
 
   const messages = [
     ...(history ?? []).map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: message },
+    { role: 'user', content: userContent },
   ];
 
-  // Save user message
+  // Save user message (store original message only for history display)
   await admin.from('chat_messages').insert({
     org_id: ctx.orgId,
     role: 'user',
     content: message,
     agent,
+    ...(sessionId && { session_id: sessionId }),
   });
 
   try {
@@ -239,9 +269,10 @@ export async function POST(req: Request) {
       role: 'assistant',
       content: reply,
       agent,
+      ...(sessionId && { session_id: sessionId }),
     });
 
-    return NextResponse.json({ reply, agent });
+    return NextResponse.json({ reply, agent, session_id: sessionId ?? undefined });
   } catch (e) {
     console.error('Vidya agent error:', e);
     return NextResponse.json({ error: 'Chat agent failed' }, { status: 500 });

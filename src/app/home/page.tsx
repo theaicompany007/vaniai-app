@@ -134,27 +134,22 @@ export default function HomePage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Hero */}
-      <div className="wo-hero-gradient rounded-2xl p-6 mb-6 text-white relative overflow-hidden">
-        <div className="relative z-10 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold mb-1">
-              {signals.length > 0 ? `${signals.length} new signals detected` : 'Welcome to Vani'}
-            </h1>
-            <p className="text-white/70 text-sm">
-              Signals are based on the current trigger settings. Customize triggers to search more relevant signals.
-            </p>
-          </div>
-          <button
-            onClick={() => router.push('/home/signals')}
-            className="wo-btn flex-shrink-0 text-sm"
-            style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)' }}
-          >
-            View all signals
-          </button>
+      {/* Hero — content only, no banner */}
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--wo-text)' }}>
+            {signals.length > 0 ? `${signals.length} new signals detected` : 'Welcome to Vani'}
+          </h1>
+          <p className="text-sm" style={{ color: 'var(--wo-text-muted)' }}>
+            Signals are based on the current trigger settings. Customize triggers to search more relevant signals.
+          </p>
         </div>
-        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: 'rgba(0,217,255,0.06)' }} />
-        <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full" style={{ background: 'rgba(0,217,255,0.04)' }} />
+        <button
+          onClick={() => router.push('/home/signals')}
+          className="wo-btn wo-btn-primary flex-shrink-0 text-sm"
+        >
+          View all signals
+        </button>
       </div>
 
       <div className="flex gap-6">

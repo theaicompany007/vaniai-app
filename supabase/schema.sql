@@ -237,12 +237,21 @@ CREATE TABLE research_sessions (
   created_at timestamptz DEFAULT now()
 );
 
+CREATE TABLE chat_sessions (
+  id         uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id     uuid REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+  agent      text DEFAULT 'Vidya',
+  name       text,
+  created_at timestamptz DEFAULT now()
+);
+
 CREATE TABLE chat_messages (
   id         uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   org_id     uuid REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
   role       text NOT NULL,
   content    text NOT NULL,
   agent      text DEFAULT 'Vidya',
+  session_id uuid REFERENCES chat_sessions(id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT now()
 );
 
@@ -309,7 +318,8 @@ ALTER TABLE contacts           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE opportunities      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documents          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE research_sessions  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE chat_messages      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_sessions     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kb_collections     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_chunks   ENABLE ROW LEVEL SECURITY;
 
@@ -347,7 +357,7 @@ DECLARE
 BEGIN
   FOR tbl IN SELECT unnest(ARRAY[
     'signals','accounts','contacts','opportunities',
-    'documents','research_sessions','chat_messages',
+    'documents','research_sessions','chat_sessions','chat_messages',
     'kb_collections','knowledge_chunks'
   ])
   LOOP

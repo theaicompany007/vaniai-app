@@ -13,9 +13,13 @@ const INDUSTRIES = [
 
 interface Props {
   onClose: () => void;
+  /** When provided, form submits via this callback instead of startPlaybook + navigate (e.g. when replacing from Playbook page). */
+  onStart?: (company: string, industry: string) => void;
+  /** If set, show a short note that starting will replace this playbook. */
+  existingCompany?: string | null;
 }
 
-export default function PlaybookStartModal({ onClose }: Props) {
+export default function PlaybookStartModal({ onClose, onStart, existingCompany }: Props) {
   const router = useRouter();
   const { startPlaybook } = usePlaybook();
   const [company, setCompany] = useState('');
@@ -33,9 +37,16 @@ export default function PlaybookStartModal({ onClose }: Props) {
 
   function handleStart() {
     if (!company.trim()) return;
-    startPlaybook(company.trim(), effectiveIndustry);
-    onClose();
-    router.push('/home/playbook');
+    const c = company.trim();
+    const i = effectiveIndustry;
+    if (onStart) {
+      onStart(c, i);
+      onClose();
+    } else {
+      startPlaybook(c, i);
+      onClose();
+      router.push('/home/playbook');
+    }
   }
 
   return (
@@ -123,6 +134,13 @@ export default function PlaybookStartModal({ onClose }: Props) {
             />
           )}
         </div>
+
+        {/* Note when replacing existing playbook */}
+        {existingCompany && (
+          <p className="text-xs mb-3 p-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: 'var(--wo-text-muted)' }}>
+            You have an active playbook for <strong style={{ color: 'var(--wo-text)' }}>{existingCompany}</strong>. Starting a new one will replace it. Your CRM data is not affected.
+          </p>
+        )}
 
         {/* Preview */}
         {company.trim() && (

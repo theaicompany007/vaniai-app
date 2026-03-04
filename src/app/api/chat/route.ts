@@ -9,9 +9,10 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const agent = searchParams.get('agent') ?? 'Vidya';
   const limit = parseInt(searchParams.get('limit') ?? '50', 10);
+  const sessionId = searchParams.get('session_id');
 
   const supabase = await getSupabaseServer();
-  const { data, error } = await supabase
+  let query = supabase
     .from('chat_messages')
     .select('*')
     .eq('org_id', ctx.orgId)
@@ -19,6 +20,13 @@ export async function GET(req: Request) {
     .order('created_at', { ascending: true })
     .limit(limit);
 
+  if (sessionId) {
+    query = query.eq('session_id', sessionId);
+  } else {
+    query = query.is('session_id', null);
+  }
+
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data ?? []);
 }

@@ -21,6 +21,11 @@ const COLUMNS = [
   { label: 'Won',        keys: ['Closed Won', 'Won'] },
 ];
 
+/** Stage value to send to API for a column (first key in keys). */
+function columnStage(col: (typeof COLUMNS)[0]): string {
+  return col.keys[0];
+}
+
 const STAGE_COLORS: Record<string, string> = {
   Discovery:    '#3b82f6',
   Qualified:    '#8b5cf6',
@@ -50,9 +55,13 @@ function initials(name?: string): string {
   return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
+const DRAG_TYPE = 'application/x-vaniai-opportunity-id';
+
 export default function PipelinePage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetCol, setDropTargetCol] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/opportunities')
@@ -65,6 +74,50 @@ export default function PipelinePage() {
     ...col,
     items: opportunities.filter((o) => col.keys.includes(o.stage)),
   }));
+
+  function handleDragStart(e: React.DragEvent, opp: Opportunity) {
+    setDraggingId(opp.id);
+    e.dataTransfer.setData(DRAG_TYPE, opp.id);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null);
+    setDropTargetCol(null);
+  }
+
+  function handleDragOver(e: React.DragEvent, colLabel: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropTargetCol(colLabel);
+  }
+
+  function handleDragLeave() {
+    setDropTargetCol(null);
+  }
+
+  function handleDrop(e: React.DragEvent, col: (typeof COLUMNS)[0]) {
+    e.preventDefault();
+    setDropTargetCol(null);
+    const id = e.dataTransfer.getData(DRAG_TYPE);
+    if (!id) return;
+    const targetStage = columnStage(col);
+    const opp = opportunities.find((o) => o.id === id);
+    if (!opp || opp.stage === targetStage) return;
+
+    setOpportunities((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, stage: targetStage } : o))
+    );
+    fetch('/api/opportunities', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, stage: targetStage }),
+    }).catch(() => {
+      setOpportunities((prev) =>
+        prev.map((o) => (o.id === id ? { ...o, stage: opp.stage } : o))
+      );
+    });
+  }
 
   return (
     <div className="p-6 h-full">
@@ -92,13 +145,28 @@ export default function PipelinePage() {
               </span>
             </div>
 
-            {/* Cards */}
-            <div className="flex-1 flex flex-col gap-3 overflow-y-auto">
+            {/* Cards (drop zone) */}
+            <div
+              className="flex-1 flex flex-col gap-3 overflow-y-auto rounded-xl min-h-[120px] transition-colors"
+              onDragOver={(e) => handleDragOver(e, col.label)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, col)}
+              style={{
+                outline: dropTargetCol === col.label ? '2px dashed var(--wo-primary)' : undefined,
+                outlineOffset: 2,
+              }}
+            >
               {col.items.map((opp) => (
                 <div
                   key={opp.id}
-                  className="wo-card p-4 cursor-pointer transition-all hover:shadow-lg"
-                  style={{ transition: 'box-shadow 0.2s, border-color 0.2s' }}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, opp)}
+                  onDragEnd={handleDragEnd}
+                  className="wo-card p-4 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg"
+                  style={{
+                    transition: 'box-shadow 0.2s, border-color 0.2s, opacity 0.2s',
+                    opacity: draggingId === opp.id ? 0.6 : 1,
+                  }}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <div

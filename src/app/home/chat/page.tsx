@@ -7,6 +7,7 @@ import {
   Copy,
   Check,
   ChevronRight,
+  ChevronLeft,
   Home,
   Zap,
   Building2,
@@ -16,6 +17,12 @@ import {
   Mic,
   MicOff,
   ChevronDown,
+  Paperclip,
+  X,
+  Plus,
+  Clock,
+  Bookmark,
+  Search,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
@@ -25,6 +32,12 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+}
+
+interface ChatSession {
+  id: string;
+  name: string | null;
+  created_at: string;
 }
 
 // ─── Markdown Renderer ───────────────────────────────────────────────────────
@@ -219,7 +232,16 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<Array<{ name: string; text: string }>>([]);
+  // History panel (same as Research)
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyPinned, setHistoryPinned] = useState(true);
+  const [historyVisibleCount, setHistoryVisibleCount] = useState(6);
+  const [historyPanelCollapsed, setHistoryPanelCollapsed] = useState(false);
 
   // Track scroll position
   useEffect(() => {
@@ -244,18 +266,90 @@ export default function ChatPage() {
 
   const hasMessages = messages.length > 0;
 
-  // Load persisted chat history on mount
+  function getBadge(name: string | null): string | null {
+    if (!name) return null;
+    const m = name.match(/^([A-Z][a-zA-Z0-9]+(?:\s[A-Z][a-zA-Z0-9]+)*)/);
+    return m ? m[1].trim() : null;
+  }
+
+  function groupByTitle(sessions: ChatSession[]): Array<{ _groupTitle: string } & ChatSession> {
+    const byTitle: Record<string, ChatSession[]> = {};
+    sessions.forEach(s => {
+      const title = getBadge(s.name) || s.name?.slice(0, 30) || 'Chat';
+      if (!byTitle[title]) byTitle[title] = [];
+      byTitle[title].push(s);
+    });
+    const groupKeys = Object.keys(byTitle).sort((a, b) => {
+      const maxA = Math.max(...byTitle[a].map(x => new Date(x.created_at).getTime()));
+      const maxB = Math.max(...byTitle[b].map(x => new Date(x.created_at).getTime()));
+      return maxB - maxA;
+    });
+    const out: Array<{ _groupTitle: string } & ChatSession> = [];
+    groupKeys.forEach(key => {
+      const sorted = [...byTitle[key]].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      sorted.forEach(s => out.push({ ...s, _groupTitle: key }));
+    });
+    return out;
+  }
+
+  const historyQ = historySearch.toLowerCase();
+  const filteredSessions = chatSessions.filter(s =>
+    !historyQ || (s.name?.toLowerCase().includes(historyQ))
+  );
+  const flatHistoryList = groupByTitle(filteredSessions);
+  const visibleHistory = flatHistoryList.slice(0, historyVisibleCount);
+  const hasMoreHistory = flatHistoryList.length > historyVisibleCount;
+
+  async function loadChatSessions() {
+    try {
+      const r = await fetch('/api/chat-sessions?agent=Vidya');
+      const data = await r.json();
+      setChatSessions(Array.isArray(data) ? data : []);
+    } catch {
+      setChatSessions([]);
+    }
+  }
+
+  async function loadMessagesForSession(sessionId: string | null) {
+    const url = sessionId
+      ? `/api/chat?agent=Vidya&limit=60&session_id=${encodeURIComponent(sessionId)}`
+      : '/api/chat?agent=Vidya&limit=60';
+    const r = await fetch(url);
+    const data = await r.json();
+    if (Array.isArray(data) && data.length > 0) {
+      setMessages(data.map((m: { id: string; role: string; content: string }) => ({
+        id: m.id,
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })));
+    } else {
+      setMessages([]);
+    }
+    setHistoryLoaded(true);
+  }
+
   useEffect(() => {
-    fetch('/api/chat?agent=Vidya&limit=60')
-      .then(r => r.json())
-      .then((data: Array<{ id: string; role: string; content: string }>) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setMessages(data.map(m => ({ id: m.id, role: m.role as 'user' | 'assistant', content: m.content })));
-        }
-        setHistoryLoaded(true);
-      })
-      .catch(() => setHistoryLoaded(true));
+    loadChatSessions();
   }, []);
+
+  useEffect(() => {
+    if (activeSessionId === null && !historyLoaded) {
+      loadMessagesForSession(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only when session is null and not yet loaded
+  }, [activeSessionId, historyLoaded]);
+
+  async function handleNewChat() {
+    setMessages([]);
+    setActiveSessionId(null);
+    setHistoryLoaded(true);
+  }
+
+  async function loadSessionById(sessionId: string) {
+    setActiveSessionId(sessionId);
+    setHistoryLoaded(false);
+    await loadMessagesForSession(sessionId);
+  }
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -277,23 +371,57 @@ export default function ChatPage() {
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: trimmed };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    const contextFiles = [...attachedFiles];
+    setAttachedFiles([]);
     setLoading(true);
 
     try {
       const res = await fetch('/api/agents/vidya', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({
+          message: trimmed,
+          attachmentContext: contextFiles.length > 0
+            ? contextFiles.map((f) => `[File: ${f.name}]\n${f.text}`).join('\n\n')
+            : undefined,
+          session_id: activeSessionId || undefined,
+        }),
       });
       const data = await res.json();
       const reply = data.reply ?? 'Sorry, I could not process that request.';
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: reply }]);
+      if (data.session_id) {
+        setActiveSessionId(data.session_id);
+        loadChatSessions();
+      }
     } catch {
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: 'Something went wrong. Please try again.' }]);
     } finally {
       setLoading(false);
     }
-  }, [loading]);
+  }, [loading, attachedFiles, activeSessionId]);
+
+  async function handleAttachFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const allowedTypes = ['text/plain', 'text/markdown', 'text/csv', 'application/json'];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]!;
+      const isText = allowedTypes.includes(file.type) || /\.(txt|md|csv|json)$/i.test(file.name);
+      if (!isText) continue;
+      try {
+        const text = await file.text();
+        setAttachedFiles((prev) => [...prev, { name: file.name, text }]);
+      } catch {
+        // skip
+      }
+    }
+    e.target.value = '';
+  }
+
+  function removeAttachedFile(index: number) {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -305,12 +433,154 @@ export default function ChatPage() {
   async function handleClearChat() {
     await fetch('/api/chat?agent=Vidya', { method: 'DELETE' });
     setMessages([]);
+    setActiveSessionId(null);
     setShowClearConfirm(false);
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)]">
+    <div className="flex h-[calc(100vh-56px)]">
 
+      {/* ── Left History Sidebar (same as Research) ── */}
+      {!historyPanelCollapsed && (
+      <div
+        className="w-64 flex flex-col flex-shrink-0 overflow-hidden"
+        style={{ background: 'var(--wo-surface)', borderRight: '1px solid var(--wo-border)' }}
+      >
+        <div className="px-3 py-2.5 flex items-center justify-between gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+          <div className="flex items-center gap-2 min-w-0">
+            <Clock className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--wo-text-muted)' }} />
+            <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--wo-text)' }}>History</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHistoryPinned(!historyPinned)}
+            title={historyPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+            className="p-1.5 rounded-lg transition-colors flex-shrink-0"
+            style={{ color: historyPinned ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }}
+          >
+            <Bookmark className={`w-4 h-4 ${historyPinned ? '' : 'opacity-60'}`} strokeWidth={2} />
+          </button>
+        </div>
+        <div className="p-3 flex items-center gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            style={{ color: 'var(--wo-text-muted)', background: 'transparent' }}
+            title="New chat"
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-primary)'; (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-text-muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            <Plus className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setHistoryPanelCollapsed(true)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            style={{ color: 'var(--wo-text-muted)', background: 'var(--wo-surface-2)' }}
+            title="Collapse history"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--wo-text-muted)' }} />
+            <input
+              className="wo-input pl-8 text-xs py-1.5 w-full"
+              placeholder="Search history…"
+              value={historySearch}
+              onChange={e => setHistorySearch(e.target.value)}
+            />
+            {historySearch && (
+              <button onClick={() => setHistorySearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--wo-text-muted)' }}>
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="px-3 pt-2 pb-1 flex-shrink-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--wo-text-muted)' }}>Recent</p>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 hide-scrollbar">
+          {chatSessions.length === 0 && (
+            <div className="text-center py-8 px-4">
+              <MessageSquare className="w-6 h-6 mx-auto mb-2" style={{ color: 'var(--wo-text-muted)' }} />
+              <p className="text-xs" style={{ color: 'var(--wo-text-muted)' }}>No chat yet.</p>
+            </div>
+          )}
+          {flatHistoryList.length === 0 && chatSessions.length > 0 && (
+            <p className="text-xs text-center py-4 px-3" style={{ color: 'var(--wo-text-muted)' }}>
+              No sessions match &quot;{historySearch}&quot;
+            </p>
+          )}
+          {visibleHistory.map((session, idx) => {
+            const badge = getBadge(session.name);
+            const isActive = session.id === activeSessionId;
+            const showGroupHeader = session._groupTitle && (idx === 0 || visibleHistory[idx - 1]._groupTitle !== session._groupTitle);
+            return (
+              <div key={session.id}>
+                {showGroupHeader && (
+                  <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider truncate" style={{ color: 'var(--wo-text-muted)' }}>
+                    {session._groupTitle}
+                  </p>
+                )}
+                <button
+                  onClick={() => loadSessionById(session.id)}
+                  className="w-full text-left px-3 py-2 transition-all rounded-lg mx-1"
+                  style={{
+                    background: isActive ? 'rgba(0,217,255,0.08)' : 'transparent',
+                    borderLeft: isActive ? '2px solid var(--wo-primary)' : '2px solid transparent',
+                  }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                >
+                  <div className="flex items-start gap-1.5">
+                    <MessageSquare className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: isActive ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate leading-tight" style={{ color: isActive ? 'var(--wo-primary)' : 'var(--wo-text)' }}>
+                        {session.name || 'Chat'}
+                      </p>
+                      {badge && (
+                        <span className="inline-block mt-0.5 text-[9px] px-1 py-0.5 rounded font-medium"
+                          style={{ background: 'rgba(0,217,255,0.15)', color: 'var(--wo-primary)', border: '1px solid rgba(0,217,255,0.25)' }}>
+                          {badge}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            );
+          })}
+          {hasMoreHistory && (
+            <button
+              type="button"
+              onClick={() => setHistoryVisibleCount((n) => n + 5)}
+              className="w-full px-3 py-2 text-left text-xs rounded-lg mx-1 transition-colors"
+              style={{ color: 'var(--wo-text-muted)' }}
+            >
+              … More
+            </button>
+          )}
+        </div>
+      </div>
+      )}
+
+      {historyPanelCollapsed && (
+        <button
+          type="button"
+          onClick={() => setHistoryPanelCollapsed(false)}
+          className="flex-shrink-0 w-9 flex items-center justify-center py-4 border-r transition-colors rounded-r"
+          style={{ background: 'var(--wo-surface-2)', borderColor: 'var(--wo-border)', color: 'var(--wo-primary)' }}
+          title="Show history"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* ── Main: Header + Messages + Input ── */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-6 py-3 flex-shrink-0"
         style={{ borderBottom: '1px solid var(--wo-border)' }}>
@@ -381,22 +651,22 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Scroll-to-bottom button */}
+        {/* Scroll-to-bottom: circular down arrow (Vani Co-Pilot style) */}
         {showScrollBtn && (
           <button
             onClick={scrollToBottom}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-all"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full flex items-center justify-center transition-all"
             style={{
               background: 'var(--wo-surface)',
               border: '1px solid rgba(0,217,255,0.25)',
               color: 'var(--wo-text-muted)',
               boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
             }}
+            title="Scroll to bottom"
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-primary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--wo-primary)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-text-muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,217,255,0.25)'; }}
           >
-            <ChevronDown className="w-3.5 h-3.5" />
-            Scroll to bottom
+            <ChevronDown className="w-5 h-5" />
           </button>
         )}
       </div>
@@ -412,6 +682,23 @@ export default function ChatPage() {
             borderRadius: '18px',
             boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,217,255,0.06), 0 2px 16px rgba(0,217,255,0.08)',
           }}>
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {attachedFiles.map((f, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                    style={{ background: 'rgba(0,217,255,0.1)', border: '1px solid rgba(0,217,255,0.2)', color: 'var(--wo-text)' }}
+                  >
+                    <Paperclip className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{f.name}</span>
+                    <button type="button" onClick={() => removeAttachedFile(i)} className="p-0.5 rounded hover:bg-white/10" aria-label="Remove">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <textarea
               ref={textareaRef}
               placeholder="Ask Vidya about signals, accounts, pipeline, or draft an outreach…  (Enter to send)"
@@ -425,7 +712,26 @@ export default function ChatPage() {
             />
             <div className="flex items-center justify-between pt-2 mt-1"
               style={{ borderTop: '1px solid var(--wo-border)' }}>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json"
+                  multiple
+                  className="hidden"
+                  onChange={handleAttachFiles}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                  className="flex items-center gap-1 text-[11px] px-2 py-1.5 rounded-lg transition-colors"
+                  style={{ background: 'rgba(0,217,255,0.06)', color: 'var(--wo-text-muted)', border: '1px solid rgba(0,217,255,0.1)' }}
+                  title="Attach file (txt, md, csv, json) for context"
+                >
+                  <Paperclip className="w-3.5 h-3.5" />
+                  Attach
+                </button>
                 {QUICK_SUGGESTIONS.map(s => {
                   const Icon = s.icon;
                   return (
@@ -481,6 +787,7 @@ export default function ChatPage() {
             </p>
           )}
         </div>
+      </div>
       </div>
 
       {/* ── Clear Chat Confirmation Modal ── */}
