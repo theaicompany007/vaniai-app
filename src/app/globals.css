@@ -1,0 +1,384 @@
+@import "tailwindcss";
+
+/* ===== Vani Design Tokens – Dark (default) ===== */
+:root {
+  --wo-primary:       #00d9ff;   /* electric cyan */
+  --wo-primary-dark:  #00b8d9;
+  --wo-accent:        #34d399;   /* emerald */
+  --wo-bg:            #050509;   /* deep near-black */
+  --wo-surface:       #0d0d14;   /* lifted surface */
+  --wo-surface-2:     #121218;   /* raised panels */
+  --wo-border:        #1e1e2e;
+  --wo-text:          #e2e8f0;
+  --wo-text-muted:    #8892a4;
+  --wo-sidebar-bg:    linear-gradient(180deg, #0d0d14 0%, #0a0a12 100%);
+  --wo-header-height: 56px;
+  --wo-gradient-hero: linear-gradient(135deg, #001f3f 0%, #003366 40%, #004080 70%, #002244 100%);
+  --wo-cyan-glow:     rgba(0, 217, 255, 0.15);
+  --wo-hover-row:     rgba(255, 255, 255, 0.02);
+  --wo-hover-btn:     rgba(255, 255, 255, 0.06);
+}
+
+/* ===== Light Theme Overrides ===== */
+html.light-theme {
+  --wo-primary:       #0099b8;
+  --wo-primary-dark:  #007a94;
+  --wo-accent:        #059669;
+  --wo-bg:            #f5f7fa;
+  --wo-surface:       #ffffff;
+  --wo-surface-2:     #f0f4f8;
+  --wo-border:        #e2e8f0;
+  --wo-text:          #0f172a;
+  --wo-text-muted:    #64748b;
+  --wo-sidebar-bg:    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --wo-gradient-hero: linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #1e40af 70%, #0f2044 100%);
+  --wo-cyan-glow:     rgba(0, 153, 184, 0.12);
+  --wo-hover-row:     rgba(0, 0, 0, 0.02);
+  --wo-hover-btn:     rgba(0, 0, 0, 0.05);
+}
+
+/* ===== Base ===== */
+html, body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--wo-bg);
+  color: var(--wo-text);
+  transition: background 0.25s ease, color 0.2s ease;
+}
+
+/* Header branding: Syne (same as Vani Co-Pilot) for world-class look */
+.font-vani-brand {
+  font-family: 'Syne', 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.02em;
+}
+
+/* Syne descenders (g, y, etc.) need extra line-height so they don't clip */
+.vani-brand-title {
+  line-height: 1.65;
+  padding-bottom: 3px;
+}
+
+@keyframes tagline-glow {
+  0%, 100% { opacity: 1; text-shadow: 0 0 8px rgba(0, 217, 255, 0.4), 0 0 20px rgba(0, 217, 255, 0.15); }
+  50% { opacity: 0.92; text-shadow: 0 0 14px rgba(0, 217, 255, 0.55), 0 0 28px rgba(0, 217, 255, 0.2); }
+}
+.animate-tagline-glow {
+  animation: tagline-glow 2.5s ease-in-out infinite;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a3e; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a52; }
+html.light-theme ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ===== Component Classes (inside @layer so utilities can override) ===== */
+@layer components {
+
+  /* ── Sidebar ── */
+  .wo-sidebar {
+    background: var(--wo-sidebar-bg);
+    border-right: 1px solid var(--wo-border);
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .wo-sidebar-icon {
+    @apply p-2 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer relative;
+  }
+  .wo-sidebar-icon:hover {
+    background: rgba(0, 217, 255, 0.08);
+  }
+  html.light-theme .wo-sidebar-icon:hover {
+    background: rgba(0, 153, 184, 0.08);
+  }
+  .wo-sidebar-icon.active {
+    background: rgba(0, 217, 255, 0.15);
+  }
+  html.light-theme .wo-sidebar-icon.active {
+    background: rgba(0, 153, 184, 0.12);
+  }
+  .wo-sidebar-icon.active svg {
+    color: #00d9ff !important;
+  }
+  html.light-theme .wo-sidebar-icon.active svg {
+    color: #0099b8 !important;
+  }
+
+  /* ── Tooltip ── */
+  .wo-tooltip {
+    @apply absolute left-full ml-3 px-2.5 py-1 text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 z-50 rounded-md;
+    background: #1a1a2e;
+    color: #e2e8f0;
+    border: 1px solid #2a2a42;
+  }
+  html.light-theme .wo-tooltip {
+    background: #ffffff;
+    color: #0f172a;
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  .wo-sidebar-icon:hover .wo-tooltip {
+    @apply opacity-100;
+  }
+
+  /* ── Cards ── */
+  .wo-card {
+    background: var(--wo-surface);
+    border: 1px solid var(--wo-border);
+    @apply rounded-2xl;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  /* ── Signal Card ── */
+  .wo-signal-card {
+    background: var(--wo-surface);
+    border: 1px solid var(--wo-border);
+    @apply rounded-2xl p-5 transition-all duration-200;
+  }
+  .wo-signal-card:hover {
+    border-color: rgba(0, 217, 255, 0.25);
+    box-shadow: 0 0 0 1px rgba(0, 217, 255, 0.1), 0 4px 24px rgba(0, 0, 0, 0.4);
+  }
+  html.light-theme .wo-signal-card:hover {
+    border-color: rgba(0, 153, 184, 0.25);
+    box-shadow: 0 0 0 1px rgba(0, 153, 184, 0.1), 0 4px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  /* ── Hero Gradient ── */
+  .wo-hero-gradient {
+    background: var(--wo-gradient-hero);
+    border: 1px solid rgba(0, 217, 255, 0.15);
+    position: relative;
+    overflow: hidden;
+  }
+  .wo-hero-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 70% 50%, rgba(0, 217, 255, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ── Pill / Tag ── */
+  .wo-tag {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border;
+  }
+  .wo-tag-blue {
+    background: rgba(0, 217, 255, 0.08);
+    color: #00d9ff;
+    border-color: rgba(0, 217, 255, 0.2);
+  }
+  html.light-theme .wo-tag-blue {
+    background: rgba(0, 153, 184, 0.08);
+    color: #0099b8;
+    border-color: rgba(0, 153, 184, 0.2);
+  }
+  .wo-tag-green {
+    background: rgba(52, 211, 153, 0.08);
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.2);
+  }
+  html.light-theme .wo-tag-green {
+    background: rgba(5, 150, 105, 0.08);
+    color: #059669;
+    border-color: rgba(5, 150, 105, 0.2);
+  }
+  .wo-tag-purple {
+    background: rgba(139, 92, 246, 0.08);
+    color: #a78bfa;
+    border-color: rgba(139, 92, 246, 0.2);
+  }
+  html.light-theme .wo-tag-purple {
+    background: rgba(109, 40, 217, 0.06);
+    color: #6d28d9;
+    border-color: rgba(109, 40, 217, 0.15);
+  }
+  .wo-tag-orange {
+    background: rgba(251, 146, 60, 0.08);
+    color: #fb923c;
+    border-color: rgba(251, 146, 60, 0.2);
+  }
+  .wo-tag-yellow {
+    background: rgba(250, 204, 21, 0.08);
+    color: #facc15;
+    border-color: rgba(250, 204, 21, 0.2);
+  }
+  html.light-theme .wo-tag-yellow {
+    background: rgba(161, 98, 7, 0.06);
+    color: #a16207;
+    border-color: rgba(161, 98, 7, 0.15);
+  }
+
+  /* ── Buttons ── */
+  .wo-btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer;
+  }
+  .wo-btn-primary {
+    background: linear-gradient(135deg, #00b8d9, #0099b8);
+    color: #ffffff;
+    box-shadow: 0 0 16px rgba(0, 217, 255, 0.25);
+  }
+  .wo-btn-primary:hover {
+    background: linear-gradient(135deg, #00d9ff, #00b8d9);
+    box-shadow: 0 0 24px rgba(0, 217, 255, 0.4);
+  }
+  html.light-theme .wo-btn-primary {
+    background: linear-gradient(135deg, #0099b8, #007a94);
+    box-shadow: 0 0 16px rgba(0, 153, 184, 0.2);
+  }
+  html.light-theme .wo-btn-primary:hover {
+    background: linear-gradient(135deg, #00b8d9, #0099b8);
+    box-shadow: 0 0 24px rgba(0, 153, 184, 0.35);
+  }
+  .wo-btn-outline {
+    border: 1px solid rgba(0, 217, 255, 0.35);
+    color: #00d9ff;
+    background: transparent;
+  }
+  .wo-btn-outline:hover {
+    background: rgba(0, 217, 255, 0.08);
+  }
+  html.light-theme .wo-btn-outline {
+    border-color: rgba(0, 153, 184, 0.35);
+    color: #0099b8;
+  }
+  html.light-theme .wo-btn-outline:hover {
+    background: rgba(0, 153, 184, 0.08);
+  }
+  .wo-btn-ghost {
+    color: var(--wo-text-muted);
+    background: transparent;
+  }
+  .wo-btn-ghost:hover {
+    background: var(--wo-hover-btn);
+    color: var(--wo-text);
+  }
+
+  /* ── Top Nav Icon Button ── */
+  .wo-topnav-btn {
+    @apply p-2 rounded-full transition-all duration-150;
+    color: var(--wo-text-muted);
+  }
+  .wo-topnav-btn:hover {
+    background: var(--wo-hover-btn);
+    color: var(--wo-text);
+  }
+
+  /* ── Theme Toggle ── */
+  .wo-theme-toggle {
+    @apply flex items-center gap-1.5 px-2 py-1.5 rounded-full transition-all duration-200 cursor-pointer;
+    border: 1px solid var(--wo-border);
+    background: var(--wo-surface-2);
+  }
+  .wo-theme-toggle:hover {
+    border-color: var(--wo-primary);
+  }
+
+  /* ── Score Dots ── */
+  .wo-score-dots { @apply inline-flex gap-0.5 items-center; }
+  .wo-score-dot  { @apply w-2 h-2 rounded-full; }
+
+  /* ── Table ── */
+  .wo-table { @apply w-full text-sm; }
+  .wo-table thead { background: rgba(0, 217, 255, 0.04); }
+  html.light-theme .wo-table thead { background: rgba(0, 153, 184, 0.04); }
+  .wo-table th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider;
+    color: var(--wo-text-muted);
+  }
+  .wo-table td {
+    @apply px-4 py-3;
+    color: var(--wo-text);
+    border-top: 1px solid var(--wo-border);
+  }
+  .wo-table tbody tr:hover { background: var(--wo-hover-row); }
+
+  /* ── Quick Action ── */
+  .wo-quick-action {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors duration-150;
+  }
+  .wo-quick-action:hover { background: rgba(0, 217, 255, 0.06); }
+  html.light-theme .wo-quick-action:hover { background: rgba(0, 153, 184, 0.06); }
+
+  /* ── Input ── */
+  .wo-input {
+    @apply w-full px-4 py-2.5 rounded-xl text-sm transition-all;
+    background: var(--wo-surface-2);
+    border: 1px solid var(--wo-border);
+    color: var(--wo-text);
+  }
+  .wo-input::placeholder { color: var(--wo-text-muted); }
+  .wo-input:focus {
+    outline: none;
+    border-color: rgba(0, 217, 255, 0.4);
+    box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1);
+  }
+  html.light-theme .wo-input:focus {
+    border-color: rgba(0, 153, 184, 0.4);
+    box-shadow: 0 0 0 3px rgba(0, 153, 184, 0.1);
+  }
+
+  /* ── Credits Badge ── */
+  .wo-credits {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold;
+    background: rgba(250, 204, 21, 0.12);
+    color: #facc15;
+    border: 1px solid rgba(250, 204, 21, 0.2);
+  }
+  html.light-theme .wo-credits {
+    background: rgba(161, 98, 7, 0.08);
+    color: #a16207;
+    border-color: rgba(161, 98, 7, 0.15);
+  }
+
+
+  /* ── Vani Thinking Animation ── */
+  .vani-avatar-bot {
+    width: 1.75rem; height: 1.75rem;
+    border-radius: 8px;
+    background: var(--wo-surface);
+    border: 1px solid rgba(0, 217, 255, 0.25);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; padding: 2px; flex-shrink: 0;
+  }
+  .vani-thinking-dots { display: flex; gap: 4px; align-items: center; }
+  .vani-thinking-dots span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(0, 217, 255, 0.6);
+    animation: vani-dot-pulse 1.4s ease-in-out infinite;
+  }
+  .vani-thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .vani-thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  /* ── Mic Recording Animation ── */
+  .vani-mic-recording {
+    animation: vani-mic-pulse 1.2s ease-in-out infinite;
+  }
+  .vani-mic-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid #ef4444;
+    animation: vani-mic-ring 1.2s ease-out infinite;
+    pointer-events: none;
+  }
+
+} /* end @layer components */
+
+@keyframes vani-dot-pulse {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes vani-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+}
+
+@keyframes vani-mic-ring {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0;   }
+}

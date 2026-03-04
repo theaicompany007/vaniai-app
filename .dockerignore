@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+.env
+.env.local
+.env.production
+.env*.local
+Dockerfile
+docker-compose.yml
+.dockerignore
+.seed-out
+scripts/
+coverage/

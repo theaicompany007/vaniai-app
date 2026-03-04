@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "isolatedModules": false,
+    "esModuleInterop": true,
+    "outDir": ".seed-out"
+  },
+  "include": ["scripts/**/*.ts"],
+  "exclude": ["node_modules", ".next"]
+}

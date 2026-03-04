@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  vaniai-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vaniai
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3100
+    networks:
+      - shared-infra-network
+
+  # For production tunneling use your own setup. Dev: use ngrok (e.g. ngrok http 3100) outside Docker.
+
+networks:
+  shared-infra-network:
+    external: true   # join the same network used by vani + rag-infrastructure

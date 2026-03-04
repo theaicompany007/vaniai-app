@@ -1,0 +1,17 @@
+# Ngrok config for vaniai-app (Vani Sales Intelligence) local dev.
+# Domain reserved at: https://dashboard.ngrok.com/cloud-edge/domains
+# Domain: vaniai.ngrok.app  (ID: rd_3AKkkxzXWEHF8xT1gql0l45Ikc3)
+#
+# Start with:  python run-vaniai.py --tunnel
+#           or: vaniai.bat --tunnel
+#
+# Runs on port 3100 (separate from theaicompany-web on 3000 and vani Flask on 5000).
+
+version: "2"
+authtoken: 35Xujm7TLpvfEdrmpx2XIM7MtDP_6ckviDHX73yvqpFbbkmeF
+
+tunnels:
+  vaniai:
+    proto: http
+    addr: 3100
+    domain: vaniai.ngrok.app
