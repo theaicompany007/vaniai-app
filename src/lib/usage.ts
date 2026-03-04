@@ -13,6 +13,11 @@ export async function checkUsageLimit(
   orgId: string,
   feature: UsageFeature
 ): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+  // process.env['X'] avoids build-time replacement; container .env is read at runtime
+  if (process.env['BYPASS_USAGE_LIMITS'] === 'true') {
+    return { allowed: true, remaining: -1, limit: -1 };
+  }
+
   const admin = getSupabaseAdmin();
 
   const { data: org } = await admin
