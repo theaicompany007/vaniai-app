@@ -154,9 +154,12 @@ if (-not $SkipPush) {
         Write-Success 'Committed'
     }
     try {
-        # Run push without pipeline so $LASTEXITCODE is from git
+        # Git writes "Everything up-to-date" to stderr; with ErrorAction Stop that can throw. Suppress that and use exit code + output.
+        $prevErrAction = $ErrorActionPreference
+        $ErrorActionPreference = 'SilentlyContinue'
         $pushOutRaw = & git push origin $branch 2>&1
         $pushExitCode = $LASTEXITCODE
+        $ErrorActionPreference = $prevErrAction
         $pushOut = if ($null -eq $pushOutRaw) { '' } else { [string]::Join([char]10, @($pushOutRaw)) }
         # Check SUCCESS first (so we never treat success as failure)
         if ($pushExitCode -eq 0) {
@@ -167,7 +170,9 @@ if (-not $SkipPush) {
         } elseif ($pushOut -match 'Permission denied|fatal:.*failed|ERROR: Repository not found|fatal:.*authentication failed') {
             if (-not $useHttpsMethod) {
                 Configure-GitRemote -UseHttps $true
+                $ErrorActionPreference = 'SilentlyContinue'
                 & git push origin $branch 2>&1 | Out-Null
+                $ErrorActionPreference = $prevErrAction
                 if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
                 Write-Success 'Pushed via HTTPS fallback'
             } else { throw 'Push failed' }
