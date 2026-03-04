@@ -266,11 +266,11 @@ if (-not (Test-Path $envLocalPath)) {
 # ========== STEP 4: NORMALIZE .sh LINE ENDINGS + PERMISSIONS ==========
 Write-Step 'Step 4: Script permissions' 'Yellow'
 # Fix CRLF in .sh files on VM (Windows line endings cause "No such file or directory" for shebang)
-$fixShCmd = 'find ' + $RemoteProjectPath + ' -name ''*.sh'' -type f -exec sed -i ''s/\\r$//'' {} \\; 2>/dev/null; true'
+# Use -exec ... {} + to avoid \; being lost when passed through gcloud ssh
+$fixShCmd = 'find ' + $RemoteProjectPath + ' -name ''*.sh'' -type f -exec sed -i ''s/\\r$//'' {} + 2>/dev/null; true'
 Invoke-SshCommand $fixShCmd -NoOutput
 Write-Info 'Normalized .sh line endings (CRLF -> LF)'
-# Use single quotes for find -name so the command is not broken when passed through gcloud ssh
-$chmodCmd = 'cd ' + $RemoteProjectPath + '; find . -name ''*.sh'' -type f -exec chmod +x {} \\;'
+$chmodCmd = 'cd ' + $RemoteProjectPath + '; find . -name ''*.sh'' -type f -exec chmod +x {} +'
 Invoke-SshCommand $chmodCmd -NoOutput
 Write-Success 'chmod +x *.sh'
 
