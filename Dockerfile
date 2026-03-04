@@ -26,10 +26,13 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+RUN apk add --no-cache wget
+
 ENV NODE_ENV=production
 ENV PORT=3100
-ENV HOSTNAME=0.0.0.0
 
+# Listen on all interfaces so GCP load balancer health checks (to instance internal IP) can reach the app.
+# Docker can set HOSTNAME to the container name; force 0.0.0.0 in CMD so the Next.js server always binds to all interfaces.
 # Copy standalone build output
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
@@ -37,4 +40,4 @@ COPY --from=builder /app/public ./public
 
 EXPOSE 3100
 
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node server.js"]

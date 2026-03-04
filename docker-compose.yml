@@ -17,7 +17,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3100
-      - HOSTNAME=0.0.0.0
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3100/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     networks:
       - shared-infra-network
 
