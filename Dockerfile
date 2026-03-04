@@ -20,6 +20,9 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+# Use a writable TMPDIR so Next.js/Turbopack (if ever used) can write panic logs; --webpack avoids Turbopack in Docker.
+ENV TMPDIR=/app/.tmp
+RUN mkdir -p /app/.tmp && chmod 1777 /app/.tmp
 RUN npm run build
 
 # ──────────────────────────────────────────────

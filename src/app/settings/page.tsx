@@ -14,7 +14,7 @@ const GEOGRAPHY_OPTIONS = [
   'Canada', 'Germany', 'Southeast Asia', 'Europe', 'Middle East',
 ];
 const INDUSTRY_OPTIONS = [
-  'FMCG', 'Banking', 'Healthcare', 'Retail', 'Manufacturing',
+  'FMCG', 'Banking', 'Healthcare', 'Retail', 'Hospitality', 'Manufacturing',
   'Technology', 'E-commerce', 'Automotive', 'Telecom', 'Education',
   'Insurance', 'Pharma', 'Logistics', 'Media',
 ];
