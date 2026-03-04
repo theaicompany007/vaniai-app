@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   usePlaybook, STEP_ORDER, type StepId,
@@ -430,7 +430,7 @@ function Celebration({ company, onReset, onViewPlaybook }: { company: string; on
 
 export default function PlaybookPage() {
   const router = useRouter();
-  const { playbook, startPlaybook, markDone, markPending, reset, activeStep, completedCount } = usePlaybook();
+  const { playbook, playbookLoading, startPlaybook, markDone, markPending, reset, activeStep, completedCount } = usePlaybook();
   const [viewingStep, setViewingStep] = useState<StepId | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
@@ -447,7 +447,7 @@ export default function PlaybookPage() {
   const panelStepId = viewingStep ?? activeStep;
   const panelStep = STEP_DEFS.find(s => s.id === panelStepId) ?? null;
 
-  // Auto-detect completed steps on load
+  // Auto-detect completed steps when playbook loads from API (ref keeps deps array stable)
   const runAutoDetect = useCallback(async () => {
     if (!playbook) return;
     setDetecting(true);
@@ -462,7 +462,20 @@ export default function PlaybookPage() {
     setDetecting(false);
   }, [playbook, markDone]);
 
-  useEffect(() => { runAutoDetect(); }, []); // run once on mount
+  const runAutoDetectRef = useRef(runAutoDetect);
+  runAutoDetectRef.current = runAutoDetect;
+  useEffect(() => {
+    if (playbook) runAutoDetectRef.current();
+  }, [playbook]);
+
+  if (playbookLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-8">
+        <div className="animate-pulse w-16 h-16 rounded-2xl mb-4" style={{ background: 'var(--wo-surface-2)' }} />
+        <p className="text-sm" style={{ color: 'var(--wo-text-muted)' }}>Loading playbook…</p>
+      </div>
+    );
+  }
 
   if (!playbook) {
     return (

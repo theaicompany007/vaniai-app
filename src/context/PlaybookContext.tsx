@@ -16,6 +16,7 @@ export interface PlaybookState {
 
 interface PlaybookContextValue {
   playbook: PlaybookState | null;
+  playbookLoading: boolean;
   startPlaybook: (company: string, industry: string) => void;
   markDone: (stepId: StepId) => void;
   markPending: (stepId: StepId) => void;
@@ -37,12 +38,12 @@ const DEFAULT_STEPS: Record<StepId, StepStatus> = {
 };
 
 const STEP_ORDER: StepId[] = ['company', 'account', 'research', 'signals', 'opportunity', 'outreach', 'pipeline'];
-const STORAGE_KEY = 'vani_playbook';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const PlaybookContext = createContext<PlaybookContextValue>({
   playbook: null,
+  playbookLoading: true,
   startPlaybook: () => {},
   markDone: () => {},
   markPending: () => {},
@@ -51,25 +52,39 @@ const PlaybookContext = createContext<PlaybookContextValue>({
   completedCount: 0,
 });
 
+async function savePlaybook(state: PlaybookState): Promise<void> {
+  const res = await fetch('/api/playbook', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(state),
+  });
+  if (!res.ok) throw new Error('Failed to save playbook');
+}
+
 export function PlaybookProvider({ children }: { children: ReactNode }) {
   const [playbook, setPlaybook] = useState<PlaybookState | null>(null);
+  const [playbookLoading, setPlaybookLoading] = useState(true);
 
-  // Load from localStorage on mount
+  // Load from API on mount
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setPlaybook(JSON.parse(raw));
-    } catch {}
+    let cancelled = false;
+    fetch('/api/playbook')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data && data.company != null && data.steps != null) {
+          setPlaybook({
+            company:   data.company ?? '',
+            industry:  data.industry ?? '',
+            steps:     data.steps ?? {},
+            startedAt: data.startedAt ?? new Date().toISOString(),
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPlaybookLoading(false); });
+    return () => { cancelled = true; };
   }, []);
-
-  // Persist to localStorage on change
-  useEffect(() => {
-    if (playbook) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(playbook));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, [playbook]);
 
   const startPlaybook = useCallback((company: string, industry: string) => {
     const fresh: PlaybookState = {
@@ -79,17 +94,31 @@ export function PlaybookProvider({ children }: { children: ReactNode }) {
       startedAt: new Date().toISOString(),
     };
     setPlaybook(fresh);
+    savePlaybook(fresh).catch(() => {});
   }, []);
 
   const markDone = useCallback((stepId: StepId) => {
-    setPlaybook(prev => prev ? { ...prev, steps: { ...prev.steps, [stepId]: 'done' } } : prev);
+    setPlaybook((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, steps: { ...prev.steps, [stepId]: 'done' as StepStatus } };
+      savePlaybook(next).catch(() => {});
+      return next;
+    });
   }, []);
 
   const markPending = useCallback((stepId: StepId) => {
-    setPlaybook(prev => prev ? { ...prev, steps: { ...prev.steps, [stepId]: 'pending' } } : prev);
+    setPlaybook((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, steps: { ...prev.steps, [stepId]: 'pending' as StepStatus } };
+      savePlaybook(next).catch(() => {});
+      return next;
+    });
   }, []);
 
-  const reset = useCallback(() => setPlaybook(null), []);
+  const reset = useCallback(() => {
+    setPlaybook(null);
+    fetch('/api/playbook', { method: 'DELETE' }).catch(() => {});
+  }, []);
 
   // Derive the current active step (first non-done step)
   const activeStep: StepId | null = playbook
@@ -101,7 +130,7 @@ export function PlaybookProvider({ children }: { children: ReactNode }) {
     : 0;
 
   return (
-    <PlaybookContext.Provider value={{ playbook, startPlaybook, markDone, markPending, reset, activeStep, completedCount }}>
+    <PlaybookContext.Provider value={{ playbook, playbookLoading, startPlaybook, markDone, markPending, reset, activeStep, completedCount }}>
       {children}
     </PlaybookContext.Provider>
   );

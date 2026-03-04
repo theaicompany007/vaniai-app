@@ -160,12 +160,24 @@ function VidyaThinking() {
 }
 
 // ─── Message Bubbles ──────────────────────────────────────────────────────────
-function UserBubble({ content }: { content: string }) {
+function UserBubble({ content, avatarUrl }: { content: string; avatarUrl?: string | null }) {
   return (
     <div className="flex items-start gap-3 mb-4 flex-row-reverse">
-      <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold mt-0.5"
-        style={{ background: 'linear-gradient(135deg, #00b8d9, #0099b8)' }}>
-        You
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden border-2 mt-0.5"
+        style={{
+          background: 'var(--wo-surface)',
+          borderColor: 'var(--wo-primary)',
+          boxShadow: '0 0 10px var(--wo-cyan-glow)',
+          ...(avatarUrl ? {} : { background: 'linear-gradient(135deg, #00b8d9, #0099b8)' }),
+        }}
+      >
+        {avatarUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-white text-[10px] font-bold">You</span>
+        )}
       </div>
       <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed"
         style={{ background: 'linear-gradient(135deg, rgba(0,184,217,0.18), rgba(0,153,184,0.12))', border: '1px solid rgba(0,217,255,0.2)', color: 'var(--wo-text)' }}>
@@ -239,9 +251,23 @@ export default function ChatPage() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [historySearch, setHistorySearch] = useState('');
-  const [historyPinned, setHistoryPinned] = useState(true);
+  const [historyPinned, setHistoryPinned] = useState(() => {
+    try { return localStorage.getItem('vaniai_history_pinned') !== '0'; } catch { return true; }
+  });
   const [historyVisibleCount, setHistoryVisibleCount] = useState(6);
   const [historyPanelCollapsed, setHistoryPanelCollapsed] = useState(false);
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.avatar_url) setUserAvatarUrl(data.avatar_url); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem('vaniai_history_pinned', historyPinned ? '1' : '0'); } catch {}
+  }, [historyPinned]);
 
   // Track scroll position
   useEffect(() => {
@@ -440,23 +466,47 @@ export default function ChatPage() {
   return (
     <div className="flex h-[calc(100vh-56px)]">
 
-      {/* ── Left History Sidebar (same as Research) ── */}
+      {/* ── Left History: when unpinned, collapse on leave and expand on hover over this area ── */}
+      <div
+        className="flex-shrink-0"
+        onMouseEnter={() => { if (!historyPinned) setHistoryPanelCollapsed(false); }}
+        onMouseLeave={() => { if (!historyPinned) setHistoryPanelCollapsed(true); }}
+      >
       {!historyPanelCollapsed && (
       <div
         className="w-64 flex flex-col flex-shrink-0 overflow-hidden"
         style={{ background: 'var(--wo-surface)', borderRight: '1px solid var(--wo-border)' }}
       >
-        <div className="px-3 py-2.5 flex items-center justify-between gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+        <div
+          className="px-3 py-2.5 flex items-center justify-between gap-2 flex-shrink-0 transition-colors rounded-t-lg"
+          style={{ borderBottom: '1px solid var(--wo-border)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
           <div className="flex items-center gap-2 min-w-0">
             <Clock className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--wo-text-muted)' }} />
             <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--wo-text)' }}>History</span>
           </div>
           <button
             type="button"
-            onClick={() => setHistoryPinned(!historyPinned)}
+            onClick={() => {
+              const next = !historyPinned;
+              setHistoryPinned(next);
+              if (!next) setHistoryPanelCollapsed(true); // unpin → collapse
+            }}
             title={historyPinned ? 'Unpin sidebar' : 'Pin sidebar'}
             className="p-1.5 rounded-lg transition-colors flex-shrink-0"
             style={{ color: historyPinned ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }}
+            onMouseEnter={e => {
+              const t = e.currentTarget as HTMLElement;
+              t.style.background = 'rgba(0,217,255,0.1)';
+              t.style.color = 'var(--wo-primary)';
+            }}
+            onMouseLeave={e => {
+              const t = e.currentTarget as HTMLElement;
+              t.style.background = 'transparent';
+              t.style.color = historyPinned ? 'var(--wo-primary)' : 'var(--wo-text-muted)';
+            }}
           >
             <Bookmark className={`w-4 h-4 ${historyPinned ? '' : 'opacity-60'}`} strokeWidth={2} />
           </button>
@@ -559,6 +609,8 @@ export default function ChatPage() {
               onClick={() => setHistoryVisibleCount((n) => n + 5)}
               className="w-full px-3 py-2 text-left text-xs rounded-lg mx-1 transition-colors"
               style={{ color: 'var(--wo-text-muted)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; (e.currentTarget as HTMLElement).style.color = 'var(--wo-text)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--wo-text-muted)'; }}
             >
               … More
             </button>
@@ -573,14 +625,15 @@ export default function ChatPage() {
           onClick={() => setHistoryPanelCollapsed(false)}
           className="flex-shrink-0 w-9 flex items-center justify-center py-4 border-r transition-colors rounded-r"
           style={{ background: 'var(--wo-surface-2)', borderColor: 'var(--wo-border)', color: 'var(--wo-primary)' }}
-          title="Show history"
+          title={historyPinned ? 'Show history' : 'Hover to expand history'}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
       )}
+      </div>
 
-      {/* ── Main: Header + Messages + Input ── */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      {/* ── Main: Header + Messages + Input (min-h-0 so input bar stays at bottom) ── */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden min-w-0">
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-6 py-3 flex-shrink-0"
         style={{ borderBottom: '1px solid var(--wo-border)' }}>
@@ -604,7 +657,7 @@ export default function ChatPage() {
       </div>
 
       {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto relative" ref={scrollContainerRef}>
+      <div className="flex-1 min-h-0 overflow-y-auto relative" ref={scrollContainerRef}>
         <div className="max-w-3xl mx-auto py-6 px-6">
 
           {/* Empty / Welcome State */}
@@ -643,7 +696,7 @@ export default function ChatPage() {
           {/* Messages */}
           {messages.map(msg =>
             msg.role === 'user'
-              ? <UserBubble key={msg.id} content={msg.content} />
+              ? <UserBubble key={msg.id} content={msg.content} avatarUrl={userAvatarUrl} />
               : <VidyaBubble key={msg.id} content={msg.content} />
           )}
 

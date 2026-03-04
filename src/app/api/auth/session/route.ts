@@ -13,18 +13,18 @@ export async function GET() {
   }
 
   const supabase = await getSupabaseServer();
-  const { data: membership } = await supabase
-    .from('org_memberships')
-    .select('org_id, role')
-    .eq('user_id', user.userId)
-    .limit(1)
-    .single();
+  const [{ data: membership }, { data: { user: authUser } }] = await Promise.all([
+    supabase.from('org_memberships').select('org_id, role').eq('user_id', user.userId).limit(1).single(),
+    supabase.auth.getUser(),
+  ]);
 
+  const meta = (authUser?.user_metadata ?? {}) as Record<string, string>;
   const role = membership?.role as string | undefined;
   return NextResponse.json({
     userId: user.userId,
     email: user.email,
     orgId: membership?.org_id ?? null,
     role: role ?? null,
+    avatar_url: meta.avatar_url ?? null,
   });
 }

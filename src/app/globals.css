@@ -68,6 +68,30 @@ html, body {
   animation: tagline-glow 2.5s ease-in-out infinite;
 }
 
+/* Header agent ticker — horizontal scroll (marquee-style) */
+@keyframes agent-ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.agent-ticker {
+  overflow: hidden;
+  width: 100%;
+  max-width: min(480px, 100%);
+}
+.agent-ticker-inner {
+  display: inline-flex;
+  flex-shrink: 0;
+  white-space: nowrap;
+  will-change: transform;
+  animation: agent-ticker-scroll 32s linear infinite;
+}
+.agent-ticker-inner:hover {
+  animation-play-state: paused;
+}
+.agent-ticker-inner > span {
+  flex-shrink: 0;
+}
+
 /* Research landing — SPARK-style stagger fade-in-up */
 @keyframes research-fade-in-up {
   from {

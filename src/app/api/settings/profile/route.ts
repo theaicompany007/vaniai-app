@@ -22,6 +22,7 @@ export async function GET() {
     phone:       meta.phone       ?? '',
     email:       user.email       ?? '',
     website:     meta.website     ?? '',
+    avatar_url:  meta.avatar_url  ?? '',
   });
 }
 
@@ -31,11 +32,20 @@ export async function PUT(req: Request) {
   if (!ctx) return response!;
 
   const body = await req.json();
-  const { first_name, last_name, designation, timezone, phone_code, phone, website } = body;
+  const { first_name, last_name, designation, timezone, phone_code, phone, website, avatar_url } = body;
 
   const supabase = await getSupabaseServer();
   const { error } = await supabase.auth.updateUser({
-    data: { first_name, last_name, designation, timezone, phone_code, phone, website },
+    data: {
+      first_name,
+      last_name,
+      designation,
+      timezone,
+      phone_code,
+      phone,
+      website,
+      ...(typeof avatar_url === 'string' && { avatar_url }),
+    },
   });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

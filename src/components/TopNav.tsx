@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import {
   Settings, Bell, Sun, Moon, HelpCircle, LogOut, X,
@@ -12,6 +12,21 @@ import { supabase } from '@/lib/supabase';
 import { usePlaybook } from '@/context/PlaybookContext';
 
 const PLAYBOOK_CHIP_HIDDEN_KEY = 'vaniai_header_playbook_hidden';
+
+// ─── Route → Agent (shown in header center, animated line — not a button) ──────
+const ROUTE_AGENTS: { path: string; name: string; displayLine: string }[] = [
+  { path: '/research', name: 'Vivek', displayLine: 'Agent Vivek. I do Research. Deep-dives on any account: tech stack, pain points, entry points. So you go into calls prepared.' },
+  { path: '/home/chat', name: 'Vidya', displayLine: 'Agent Vidya. I do Chat. Strategy, first-contact emails, next-best-action, deal coaching. Your always-on sales advisor.' },
+  { path: '/home/signals', name: 'Vigil', displayLine: 'Agent Vigil. I do Lead Signals. I scan the web for funding, hiring, leadership changes at your target companies. So you spot intent early.' },
+  { path: '/home/documents', name: 'Varta', displayLine: 'Agent Varta. I do Documents. I generate pitch decks, proposals, and briefs from your knowledge base and signals. So you send tailored content, fast.' },
+];
+
+function getActiveAgent(pathname: string): { name: string; displayLine: string } | null {
+  for (const a of ROUTE_AGENTS) {
+    if (pathname === a.path || pathname.startsWith(a.path + '/')) return a;
+  }
+  return null;
+}
 
 // ─── Workflow steps shown in the Help panel ───────────────────────────────────
 
@@ -70,9 +85,11 @@ const WORKFLOW_STEPS = [
 
 export default function TopNav() {
   const router = useRouter();
+  const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { playbook, completedCount } = usePlaybook();
   const [playbookChipHidden, setPlaybookChipHidden] = useState<boolean>(false);
+  const activeAgent = getActiveAgent(pathname ?? '');
 
   useEffect(() => {
     try {
@@ -82,6 +99,7 @@ export default function TopNav() {
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
   const hidePlaybookChip = () => {
@@ -102,6 +120,7 @@ export default function TopNav() {
           const roleMap: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' };
           setUserRole(roleMap[data.role as string] ?? (data.role as string));
         }
+        if (data?.avatar_url) setUserAvatarUrl(data.avatar_url);
       })
       .catch(() => {});
   }, []);
@@ -148,7 +167,25 @@ export default function TopNav() {
           </div>
         </div>
 
-        {/* ── Center/Right: Playbook chip (when active) or Show Playbook ───── */}
+        {/* ── Center: agent line as ticker ("Vani AI agent" + name bold, scrolls horizontally) ── */}
+        <div className="flex-1 flex items-center justify-center min-w-0 px-3">
+          {activeAgent ? (
+            <div className="agent-ticker" title={activeAgent.displayLine}>
+              <div className="agent-ticker-inner" style={{ color: 'var(--wo-primary)' }}>
+                <span className="text-[11px] sm:text-xs inline-block px-4 animate-tagline-glow">
+                  Vani AI agent <strong className="font-bold">{activeAgent.name}</strong>. {activeAgent.displayLine.replace(`Agent ${activeAgent.name}. `, '')}
+                </span>
+                <span className="text-[11px] sm:text-xs inline-block px-4 animate-tagline-glow" aria-hidden>
+                  Vani AI agent <strong className="font-bold">{activeAgent.name}</strong>. {activeAgent.displayLine.replace(`Agent ${activeAgent.name}. `, '')}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <span className="text-xs truncate max-w-[200px]" style={{ color: 'var(--wo-text-muted)' }} />
+          )}
+        </div>
+
+        {/* ── Playbook chip (when active) or Show Playbook ───── */}
         {playbook && (
           <div className="flex items-center gap-1 flex-shrink-0">
             {playbookChipHidden ? (
@@ -206,19 +243,34 @@ export default function TopNav() {
         {/* ── Right: user info + icon row ─────────────────────────────────── */}
         <div className="flex items-center gap-3 flex-shrink-0">
 
-          {/* User email + role pill */}
+          {/* User photo (if set) + email + role — bright primary color with glow like tagline */}
           {userEmail && (
-            <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0">
-              <User className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--wo-text-muted)' }} />
-              <span className="text-xs truncate max-w-[200px] lg:max-w-[280px]" style={{ color: 'var(--wo-text-muted)' }}>
+            <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+              {userAvatarUrl ? (
+                <div
+                  className="w-7 h-7 rounded-full flex-shrink-0 overflow-hidden border-2"
+                  style={{
+                    background: 'var(--wo-surface)',
+                    borderColor: 'var(--wo-primary)',
+                    boxShadow: '0 0 10px var(--wo-cyan-glow)',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <User className="w-3.5 h-3.5 flex-shrink-0 animate-tagline-glow" style={{ color: 'var(--wo-primary)' }} />
+              )}
+              <span className="text-xs truncate max-w-[200px] lg:max-w-[280px] font-medium animate-tagline-glow" style={{ color: 'var(--wo-primary)' }}>
                 {userEmail}
               </span>
               {userRole && (
                 <span
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 animate-tagline-glow"
                   style={{
-                    background: userRole === 'Owner' ? 'rgba(251,146,60,0.15)' : userRole === 'Admin' ? 'rgba(167,139,250,0.15)' : 'rgba(0,217,255,0.1)',
-                    color: userRole === 'Owner' ? '#fb923c' : userRole === 'Admin' ? '#a78bfa' : 'var(--wo-primary)',
+                    background: 'rgba(0,217,255,0.15)',
+                    color: 'var(--wo-primary)',
+                    boxShadow: '0 0 12px var(--wo-cyan-glow)',
                   }}
                 >
                   {userRole}
@@ -308,6 +360,22 @@ export default function TopNav() {
               <button onClick={() => setShowHelp(false)} className="wo-topnav-btn">
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* About the agents (what they do & why) */}
+            <div className="px-5 pt-4 pb-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--wo-primary)' }}>
+                The agents
+              </h3>
+              <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--wo-text-muted)' }}>
+                Each tab is powered by a dedicated AI agent. The header shows who&apos;s active (e.g. Vani AI agent Vivek on Research). They were built so you can research, signal, write, and coach without switching tools.
+              </p>
+              <ul className="space-y-2 text-xs" style={{ color: 'var(--wo-text-muted)' }}>
+                <li><strong style={{ color: 'var(--wo-primary)' }}>Vivek</strong> — Research. Deep-dives on any account: tech stack, pain points, entry points. So you go into calls prepared.</li>
+                <li><strong style={{ color: 'var(--wo-primary)' }}>Vidya</strong> — Chat co-pilot. Strategy, first-contact emails, next-best-action, deal coaching. Your always-on sales advisor.</li>
+                <li><strong style={{ color: 'var(--wo-primary)' }}>Vigil</strong> — Lead signals. Scans the web for funding, hiring, leadership changes at target companies. So you spot intent early.</li>
+                <li><strong style={{ color: 'var(--wo-primary)' }}>Varta</strong> — Documents. Generates pitch decks, proposals, and briefs from your KB and signals. So you send tailored content, fast.</li>
+              </ul>
             </div>
 
             {/* Steps list */}

@@ -63,6 +63,7 @@ interface UserProfile {
   phone: string;
   email: string;
   website: string;
+  avatar_url?: string;
 }
 
 interface Member {
@@ -326,11 +327,13 @@ function AccountSettings() {
   const [profile, setProfile] = useState<UserProfile>({
     first_name: '', last_name: '', designation: 'Consultant',
     timezone: 'Asia/Calcutta', phone_code: '+91', phone: '',
-    email: '', website: '',
+    email: '', website: '', avatar_url: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [msg, setMsg] = useState('');
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch('/api/settings/profile')
@@ -364,6 +367,31 @@ function AccountSettings() {
     setProfile(prev => ({ ...prev, [field]: value }));
   }
 
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    setMsg('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/settings/profile/avatar', { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.avatar_url) {
+        setProfile(prev => ({ ...prev, avatar_url: data.avatar_url }));
+        setMsg('Profile photo updated.');
+        setTimeout(() => setMsg(''), 3000);
+      } else {
+        setMsg(data.error || 'Upload failed.');
+      }
+    } catch {
+      setMsg('Upload failed.');
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = '';
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -375,6 +403,51 @@ function AccountSettings() {
   return (
     <div className="flex flex-col gap-5">
       <h2 className="text-lg font-bold" style={{ color: 'var(--wo-text)' }}>My Account</h2>
+
+      {/* Profile photo — used in header and chat */}
+      <div className="flex items-center gap-4">
+        <input
+          ref={avatarInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          className="hidden"
+          onChange={handleAvatarUpload}
+        />
+        <button
+          type="button"
+          onClick={() => avatarInputRef.current?.click()}
+          disabled={uploadingAvatar}
+          className="w-20 h-20 rounded-full overflow-hidden border-2 flex-shrink-0 flex items-center justify-center transition-opacity disabled:opacity-50"
+          style={{
+            background: 'var(--wo-surface)',
+            borderColor: 'var(--wo-primary)',
+            boxShadow: '0 0 12px var(--wo-cyan-glow)',
+          }}
+          title="Upload profile photo"
+        >
+          {profile.avatar_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+          ) : (
+            <User className="w-10 h-10" style={{ color: 'var(--wo-primary)' }} />
+          )}
+        </button>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium" style={{ color: 'var(--wo-text)' }}>Profile photo</span>
+          <p className="text-xs" style={{ color: 'var(--wo-text-muted)' }}>
+            Shown in the header and next to your messages in Research & Chat. JPEG, PNG, GIF or WebP, max 2MB.
+          </p>
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="wo-btn wo-btn-outline text-xs w-fit mt-1 flex items-center gap-1.5"
+          >
+            {uploadingAvatar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            {uploadingAvatar ? 'Uploading…' : 'Upload photo'}
+          </button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>

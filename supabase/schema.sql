@@ -10,6 +10,7 @@
 
 DROP TABLE IF EXISTS knowledge_chunks     CASCADE;
 DROP TABLE IF EXISTS kb_collections       CASCADE;
+DROP TABLE IF EXISTS playbooks            CASCADE;
 DROP TABLE IF EXISTS chat_messages        CASCADE;
 DROP TABLE IF EXISTS research_sessions    CASCADE;
 DROP TABLE IF EXISTS documents            CASCADE;
@@ -82,6 +83,16 @@ CREATE TABLE org_memberships (
   role       text DEFAULT 'member',  -- 'owner'|'admin'|'member' (owner = org creator, one per org)
   created_at timestamptz DEFAULT now(),
   UNIQUE(org_id, user_id)
+);
+
+-- Active playbook per org (company, industry, step progress)
+CREATE TABLE playbooks (
+  org_id     uuid PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  company    text NOT NULL,
+  industry   text NOT NULL DEFAULT '',
+  steps      jsonb NOT NULL DEFAULT '{}',
+  started_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- Pending invites: token-based invite flow (email, org, role, token, expiry)
@@ -318,6 +329,7 @@ ALTER TABLE contacts           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE opportunities      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documents          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE research_sessions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE playbooks         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_sessions     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kb_collections     ENABLE ROW LEVEL SECURITY;
@@ -357,7 +369,7 @@ DECLARE
 BEGIN
   FOR tbl IN SELECT unnest(ARRAY[
     'signals','accounts','contacts','opportunities',
-    'documents','research_sessions','chat_sessions','chat_messages',
+    'documents','research_sessions','playbooks','chat_sessions','chat_messages',
     'kb_collections','knowledge_chunks'
   ])
   LOOP

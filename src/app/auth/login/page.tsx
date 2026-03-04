@@ -88,10 +88,17 @@ function LoginForm() {
       style={{ background: 'var(--wo-bg)' }}
     >
       <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex flex-col items-center gap-2 justify-center mb-8">
+        {/* Logo + title + tagline (same styling as app header) */}
+        <div className="flex flex-col items-center gap-2 justify-center mb-8 text-center font-vani-brand">
           <Image src="/vani-logo.png" alt="Vani" width={56} height={56} className="rounded-2xl object-contain" />
-          <span className="text-lg font-bold" style={{ color: 'var(--wo-text)' }}>Vani Sales Intelligence</span>
+          <h1 className="vani-brand-title text-lg font-bold tracking-wide" style={{ color: 'var(--wo-text)' }}>
+            Vani AI - Sales Intelligence Platform
+          </h1>
+          <p className="text-sm leading-tight">
+            <span className="font-bold animate-tagline-glow" style={{ color: 'var(--wo-primary)' }}>
+              Don&apos;t app, just talk.
+            </span>
+          </p>
         </div>
 
         <div className="wo-card p-8">

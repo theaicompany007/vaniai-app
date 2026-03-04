@@ -28,9 +28,11 @@ import {
   Radio,
   Target,
   Briefcase,
+  Pin,
   type LucideIcon,
 } from 'lucide-react';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
+import { usePlaybook } from '@/context/PlaybookContext';
 
 // ─── Research prompt cards (SPARK-style: icon, title, detailed description) ───
 const RESEARCH_TEMPLATES: { id: string; title: string; prompt: string; accent: string; Icon: LucideIcon }[] = [
@@ -77,6 +79,167 @@ const RESEARCH_TEMPLATES: { id: string; title: string; prompt: string; accent: s
     Icon: Briefcase,
   },
 ];
+
+export type PromptContext = { company: string; industry: string; describeSignal: string };
+
+function fillPromptPlaceholders(
+  prompt: string,
+  ctx: PromptContext
+): string {
+  const company = (ctx.company || '').trim();
+  const industry = (ctx.industry || '').trim();
+  const signal = (ctx.describeSignal || '').trim();
+  return prompt
+    .replace(/\[company\/industry\]/gi, company && industry ? `${company} / ${industry}` : '[company/industry]')
+    .replace(/\[company\/space\]/gi, company ? company : '[company/space]')
+    .replace(/\[describe signal\]/gi, signal || '[describe signal]')
+    .replace(/\[company\]/gi, company || '[company]')
+    .replace(/\[industry\]/gi, industry || '[industry]');
+}
+
+type PromptSegment = { text: string; type: 'normal' | 'filled' | 'placeholder' };
+
+function placeholderRegex() {
+  return /\[(?:company\/industry|company\/space|describe signal|company|industry)\]/gi;
+}
+
+function getPromptDisplaySegments(filledPrompt: string, ctx: PromptContext): PromptSegment[] {
+  const company = (ctx.company || '').trim();
+  const industry = (ctx.industry || '').trim();
+  const signal = (ctx.describeSignal || '').trim();
+  const values: string[] = [];
+  if (company) values.push(company);
+  if (industry) values.push(industry);
+  if (company && industry) values.push(`${company} / ${industry}`);
+  if (signal) values.push(signal);
+  const uniq = Array.from(new Set(values)).filter(Boolean).sort((a, b) => b.length - a.length);
+  const ranges: { start: number; end: number }[] = [];
+  for (const val of uniq) {
+    let idx = 0;
+    while (idx < filledPrompt.length) {
+      const pos = filledPrompt.indexOf(val, idx);
+      if (pos === -1) break;
+      ranges.push({ start: pos, end: pos + val.length });
+      idx = pos + 1;
+    }
+  }
+  ranges.sort((a, b) => a.start - b.start);
+  const merged: { start: number; end: number }[] = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && r.start <= last.end) {
+      last.end = Math.max(last.end, r.end);
+    } else {
+      merged.push({ start: r.start, end: r.end });
+    }
+  }
+  const segments: PromptSegment[] = [];
+  let prev = 0;
+  for (const { start, end } of merged) {
+    if (start > prev) segments.push({ text: filledPrompt.slice(prev, start), type: 'normal' });
+    segments.push({ text: filledPrompt.slice(start, end), type: 'filled' });
+    prev = end;
+  }
+  if (prev < filledPrompt.length) segments.push({ text: filledPrompt.slice(prev), type: 'normal' });
+  const raw = segments.length ? segments : [{ text: filledPrompt, type: 'normal' as const }];
+  const withPlaceholders: PromptSegment[] = [];
+  for (const seg of raw) {
+    if (seg.type !== 'normal') {
+      withPlaceholders.push(seg);
+      continue;
+    }
+    const re = placeholderRegex();
+    const parts = seg.text.split(re);
+    const matches = seg.text.match(placeholderRegex()) || [];
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i]) withPlaceholders.push({ text: parts[i], type: 'normal' });
+      if (i < matches.length) withPlaceholders.push({ text: matches[i], type: 'placeholder' });
+    }
+  }
+  return withPlaceholders.length ? withPlaceholders : [{ text: filledPrompt, type: 'normal' }];
+}
+
+const PROMPT_CONTEXT_STORAGE_KEY = 'vaniai_prompt_context';
+
+function loadPromptContextFromStorage(): PromptContext {
+  if (typeof window === 'undefined') return { company: '', industry: '', describeSignal: '' };
+  try {
+    const raw = localStorage.getItem(PROMPT_CONTEXT_STORAGE_KEY);
+    if (!raw) return { company: '', industry: '', describeSignal: '' };
+    const parsed = JSON.parse(raw) as Partial<PromptContext>;
+    return {
+      company: typeof parsed.company === 'string' ? parsed.company : '',
+      industry: typeof parsed.industry === 'string' ? parsed.industry : '',
+      describeSignal: typeof parsed.describeSignal === 'string' ? parsed.describeSignal : '',
+    };
+  } catch {
+    return { company: '', industry: '', describeSignal: '' };
+  }
+}
+
+// ─── Quick context form for pre-filling prompt placeholders ───
+function PromptContextForm({
+  context,
+  onChange,
+  playbookHint,
+  compact = false,
+}: {
+  context: PromptContext;
+  onChange: (c: PromptContext) => void;
+  playbookHint?: { company: string; industry: string } | null;
+  compact?: boolean;
+}) {
+  const fromPlaybook = playbookHint && (playbookHint.company || playbookHint.industry);
+  const labelClass = compact ? 'text-[10px] font-medium text-[var(--wo-text-muted)] mb-1' : 'text-xs font-medium mb-1.5';
+  const inputClass = compact
+    ? 'w-full px-2 py-1.5 rounded-lg border text-xs bg-[var(--wo-bg)] border-[var(--wo-border)] focus:border-[var(--wo-primary)] outline-none'
+    : 'w-full px-3 py-2 rounded-lg border text-sm bg-[var(--wo-bg)] border-[var(--wo-border)] focus:border-[var(--wo-primary)] outline-none';
+  return (
+    <div className={compact ? 'space-y-2' : 'space-y-3 p-4 rounded-xl border bg-[var(--wo-surface)] border-[var(--wo-border)]'}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--wo-text-muted)' }}>
+        Quick context for prompts
+      </p>
+      {fromPlaybook && (
+        <p className="text-[10px]" style={{ color: 'var(--wo-primary)' }}>
+          From playbook: {[playbookHint!.company, playbookHint!.industry].filter(Boolean).join(', ')}
+        </p>
+      )}
+      <div>
+        <label className={labelClass} style={{ color: 'var(--wo-text-muted)' }}>Company</label>
+        <input
+          type="text"
+          placeholder="e.g. Acme Corp"
+          value={context.company}
+          onChange={e => onChange({ ...context, company: e.target.value })}
+          className={inputClass}
+          style={{ color: 'var(--wo-text)' }}
+        />
+      </div>
+      <div>
+        <label className={labelClass} style={{ color: 'var(--wo-text-muted)' }}>Industry</label>
+        <input
+          type="text"
+          placeholder="e.g. Technology, Paints"
+          value={context.industry}
+          onChange={e => onChange({ ...context, industry: e.target.value })}
+          className={inputClass}
+          style={{ color: 'var(--wo-text)' }}
+        />
+      </div>
+      <div>
+        <label className={labelClass} style={{ color: 'var(--wo-text-muted)' }}>Describe signal (optional)</label>
+        <input
+          type="text"
+          placeholder="e.g. New CFO, expansion news"
+          value={context.describeSignal}
+          onChange={e => onChange({ ...context, describeSignal: e.target.value })}
+          className={inputClass}
+          style={{ color: 'var(--wo-text)' }}
+        />
+      </div>
+    </div>
+  );
+}
 
 // ─── Rotating hero copy (heading + subheading) ────────────────────────────────
 const RESEARCH_HERO_VARIANTS: { heading: string; subheading: string }[] = [
@@ -203,9 +366,25 @@ function MarkdownRenderer({ content }: { content: string }) {
 }
 
 // ─── User Bubble ─────────────────────────────────────────────────────────────
-function UserBubble({ content }: { content: string }) {
+function UserBubble({ content, avatarUrl }: { content: string; avatarUrl?: string | null }) {
   return (
-    <div className="flex justify-end mb-4">
+    <div className="flex items-start gap-3 mb-4 flex-row-reverse">
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden border-2 mt-0.5"
+        style={{
+          background: 'var(--wo-surface)',
+          borderColor: 'var(--wo-primary)',
+          boxShadow: '0 0 10px var(--wo-cyan-glow)',
+          ...(avatarUrl ? {} : { background: 'linear-gradient(135deg, #00b8d9, #0099b8)' }),
+        }}
+      >
+        {avatarUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-white text-[10px] font-bold">You</span>
+        )}
+      </div>
       <div
         className="max-w-[70%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed"
         style={{
@@ -789,6 +968,7 @@ function VivekBubble({ msg, onCopy, researchQuery }: { msg: ChatMessage; onCopy:
 function ResearchPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { playbook } = usePlaybook();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -796,14 +976,53 @@ function ResearchPageInner() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [historyPinned, setHistoryPinned] = useState(true);
+  const [historyPinned, setHistoryPinned] = useState(() => {
+    try { return localStorage.getItem('vaniai_history_pinned') !== '0'; } catch { return true; }
+  });
   const [historyVisibleCount, setHistoryVisibleCount] = useState(6);
   const [historyPanelCollapsed, setHistoryPanelCollapsed] = useState(false);
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.avatar_url) setUserAvatarUrl(data.avatar_url); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem('vaniai_history_pinned', historyPinned ? '1' : '0'); } catch {}
+  }, [historyPinned]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [promptsPanelExpanded, setPromptsPanelExpanded] = useState(false);
+  const [promptsPanelPinned, setPromptsPanelPinned] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try { return localStorage.getItem('vaniai_prompts_panel_pinned') === '1'; } catch { return false; }
+  });
+  const [hoveredPromptIndex, setHoveredPromptIndex] = useState<number | null>(null);
+  const promptsPanelLeaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const PROMPTS_PANEL_LEAVE_DELAY_MS = 700;
+
+  const [promptContext, setPromptContext] = useState<PromptContext>(() => ({ company: '', industry: '', describeSignal: '' }));
+  const [promptContextMounted, setPromptContextMounted] = useState(false);
+  useEffect(() => {
+    setPromptContext(loadPromptContextFromStorage());
+    setPromptContextMounted(true);
+  }, []);
+  useEffect(() => {
+    if (!promptContextMounted) return;
+    try { localStorage.setItem(PROMPT_CONTEXT_STORAGE_KEY, JSON.stringify(promptContext)); } catch {}
+  }, [promptContext, promptContextMounted]);
+
+  const effectivePromptContext: PromptContext = {
+    company: promptContext.company || playbook?.company || '',
+    industry: promptContext.industry || playbook?.industry || '',
+    describeSignal: promptContext.describeSignal || '',
+  };
 
   // Auto-fill from playbook ?q= or ?playbook= params
   useEffect(() => {
@@ -819,6 +1038,16 @@ function ResearchPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Cleanup prompts panel leave timeout on unmount
+  useEffect(() => {
+    return () => { if (promptsPanelLeaveRef.current) clearTimeout(promptsPanelLeaveRef.current); };
+  }, []);
+
+  // Persist prompts panel pinned state
+  useEffect(() => {
+    try { localStorage.setItem('vaniai_prompts_panel_pinned', promptsPanelPinned ? '1' : '0'); } catch {}
+  }, [promptsPanelPinned]);
+
   const { listening: micListening, supported: micSupported, startListening, stopListening, error: micError } = useSpeechInput({
     onResult: (transcript) => setInput(prev => (prev.trim() ? prev.trimEnd() + ' ' : '') + transcript),
     onInterim: (transcript) => setInput(transcript),
@@ -826,14 +1055,18 @@ function ResearchPageInner() {
 
   const hasMessages = messages.length > 0;
 
-  // Rotate hero heading/subheading when on empty state (after hasMessages is defined)
+  // When chat is active and panel is pinned, keep panel expanded on mount / when entering view
   useEffect(() => {
-    if (hasMessages) return;
+    if (hasMessages && promptsPanelPinned) setPromptsPanelExpanded(true);
+  }, [hasMessages, promptsPanelPinned]);
+
+  // Rotate hero heading/subheading (landing and when conversation active — header panel)
+  useEffect(() => {
     const interval = setInterval(() => {
       setHeroIndex((i) => (i + 1) % RESEARCH_HERO_VARIANTS.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, [hasMessages]);
+  }, []);
 
   // Track scroll position to show/hide scroll-to-bottom button
   useEffect(() => {
@@ -1028,26 +1261,50 @@ function ResearchPageInner() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-56px)]">
+    <div className="flex flex-1 min-h-0 overflow-hidden w-full">
 
-      {/* ── Left History Sidebar (Vani Co-Pilot style: no scrollbar, 5–7 + More, pin/unpin) ── */}
+      {/* ── Left History: when unpinned, collapse on leave and expand on hover over this area ── */}
+      <div
+        className="flex-shrink-0 h-full min-h-0 flex flex-col"
+        onMouseEnter={() => { if (!historyPinned) setHistoryPanelCollapsed(false); }}
+        onMouseLeave={() => { if (!historyPinned) setHistoryPanelCollapsed(true); }}
+      >
       {!historyPanelCollapsed && (
       <div
-        className="w-64 flex flex-col flex-shrink-0 overflow-hidden"
+        className="w-64 flex flex-col flex-shrink-0 overflow-hidden h-full min-h-0"
         style={{ background: 'var(--wo-surface)', borderRight: '1px solid var(--wo-border)' }}
       >
-        {/* History header: Clock + "History" + Pin/Unpin (bookmark) */}
-        <div className="px-3 py-2.5 flex items-center justify-between gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+        {/* History header: Clock + "History" + Pin/Unpin (bookmark) — hover feedback */}
+        <div
+          className="px-3 py-2.5 flex items-center justify-between gap-2 flex-shrink-0 transition-colors rounded-t-lg"
+          style={{ borderBottom: '1px solid var(--wo-border)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
           <div className="flex items-center gap-2 min-w-0">
             <Clock className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--wo-text-muted)' }} />
             <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--wo-text)' }}>History</span>
           </div>
           <button
             type="button"
-            onClick={() => setHistoryPinned(!historyPinned)}
+            onClick={() => {
+              const next = !historyPinned;
+              setHistoryPinned(next);
+              if (!next) setHistoryPanelCollapsed(true); // unpin → collapse
+            }}
             title={historyPinned ? 'Unpin sidebar' : 'Pin sidebar'}
             className="p-1.5 rounded-lg transition-colors flex-shrink-0"
             style={{ color: historyPinned ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }}
+            onMouseEnter={e => {
+              const t = e.currentTarget as HTMLElement;
+              t.style.background = 'rgba(0,217,255,0.1)';
+              t.style.color = 'var(--wo-primary)';
+            }}
+            onMouseLeave={e => {
+              const t = e.currentTarget as HTMLElement;
+              t.style.background = 'transparent';
+              t.style.color = historyPinned ? 'var(--wo-primary)' : 'var(--wo-text-muted)';
+            }}
           >
             <Bookmark className={`w-4 h-4 ${historyPinned ? '' : 'opacity-60'}`} strokeWidth={2} />
           </button>
@@ -1158,6 +1415,8 @@ function ResearchPageInner() {
               onClick={() => setHistoryVisibleCount((n) => n + 5)}
               className="w-full px-3 py-2 text-left text-xs rounded-lg mx-1 transition-colors"
               style={{ color: 'var(--wo-text-muted)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--wo-surface-2)'; (e.currentTarget as HTMLElement).style.color = 'var(--wo-text)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--wo-text-muted)'; }}
             >
               … More
             </button>
@@ -1166,51 +1425,61 @@ function ResearchPageInner() {
       </div>
       )}
 
-      {/* Collapsed: show strip to expand history */}
-        {/* Collapsed: only chevron (Image 3 style — no "History" text) */}
       {historyPanelCollapsed && (
         <button
           type="button"
           onClick={() => setHistoryPanelCollapsed(false)}
           className="flex-shrink-0 w-9 flex items-center justify-center py-4 border-r transition-colors rounded-r"
           style={{ background: 'var(--wo-surface-2)', borderColor: 'var(--wo-border)', color: 'var(--wo-primary)' }}
-          title="Show history"
+          title={historyPinned ? 'Show history' : 'Hover to expand history'}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
       )}
+      </div>
 
-      {/* ── Main Content ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 px-6 py-3 text-sm flex-shrink-0" style={{ borderBottom: '1px solid var(--wo-border)' }}>
-          <Home className="w-4 h-4" style={{ color: 'var(--wo-primary)' }} />
-          <span className="cursor-pointer hover:underline" style={{ color: 'var(--wo-primary)' }} onClick={() => router.push('/home')}>Home</span>
-          <ChevronRight className="w-3 h-3" style={{ color: 'var(--wo-text-muted)' }} />
-          <span
-            style={{ color: hasMessages ? 'var(--wo-primary)' : 'var(--wo-text)' }}
-            className={hasMessages ? 'cursor-pointer hover:underline' : ''}
-            onClick={hasMessages ? handleNewChat : undefined}
-          >
-            Research
-          </span>
-          {messages.find(m => m.role === 'user') && (
-            <>
-              <ChevronRight className="w-3 h-3" style={{ color: 'var(--wo-text-muted)' }} />
-              <span className="truncate max-w-[300px] text-xs" style={{ color: 'var(--wo-text-muted)' }}>
-                {(messages.find(m => m.role === 'user')?.content ?? '').slice(0, 60)}
-                {(messages.find(m => m.role === 'user')?.content ?? '').length > 60 ? '…' : ''}
-              </span>
-            </>
+      {/* ── Main Content (min-h-0 so input bar stays at bottom) ── */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Breadcrumb + when conversation active: same rotating hero animation as landing */}
+        <div className="flex-shrink-0 px-6 py-3 text-sm" style={{ borderBottom: '1px solid var(--wo-border)' }}>
+          <div className="flex items-center gap-2">
+            <Home className="w-4 h-4" style={{ color: 'var(--wo-primary)' }} />
+            <span className="cursor-pointer hover:underline" style={{ color: 'var(--wo-primary)' }} onClick={() => router.push('/home')}>Home</span>
+            <ChevronRight className="w-3 h-3" style={{ color: 'var(--wo-text-muted)' }} />
+            <span
+              style={{ color: hasMessages ? 'var(--wo-primary)' : 'var(--wo-text)' }}
+              className={hasMessages ? 'cursor-pointer hover:underline' : ''}
+              onClick={hasMessages ? handleNewChat : undefined}
+            >
+              Research
+            </span>
+            {hasMessages && messages.find(m => m.role === 'user') && (
+              <>
+                <ChevronRight className="w-3 h-3" style={{ color: 'var(--wo-text-muted)' }} />
+                <span className="truncate max-w-[300px] text-xs" style={{ color: 'var(--wo-text-muted)' }}>
+                  {(messages.find(m => m.role === 'user')?.content ?? '').slice(0, 60)}
+                  {(messages.find(m => m.role === 'user')?.content ?? '').length > 60 ? '…' : ''}
+                </span>
+              </>
+            )}
+          </div>
+          {hasMessages && (
+            <div className="research-hero mt-2">
+              <h1 key={heroIndex} className="research-hero-rotate-in text-lg sm:text-xl font-bold bg-gradient-to-r from-violet-500 via-cyan-400 to-cyan-300 bg-clip-text text-transparent">
+                {RESEARCH_HERO_VARIANTS[heroIndex].heading}
+              </h1>
+              <p key={`sub-${heroIndex}`} className="research-hero-rotate-in sub-delay text-xs mt-0.5" style={{ color: 'var(--wo-text-muted)' }}>
+                {RESEARCH_HERO_VARIANTS[heroIndex].subheading}
+              </p>
+            </div>
           )}
         </div>
 
-        {/* ── Empty State: full-width 2x3 prompt grid (SPARK-style) + landing animations ── */}
+        {/* ── Empty State (landing): hero + 2x3 prompt grid as before, input fixed at bottom ── */}
         {!hasMessages && (
           <>
-            <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden research-landing">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden research-landing">
               <div className="min-w-0 w-full max-w-6xl mx-auto px-6 py-6">
-                {/* Title — animate in first; tiles sit close below subtitle */}
                 <div className="research-hero text-center mb-4">
                   <h1 key={heroIndex} className="research-hero-rotate-in text-2xl sm:text-3xl font-bold bg-gradient-to-r from-violet-500 via-cyan-400 to-cyan-300 bg-clip-text text-transparent mb-2">
                     {RESEARCH_HERO_VARIANTS[heroIndex].heading}
@@ -1219,8 +1488,13 @@ function ResearchPageInner() {
                     {RESEARCH_HERO_VARIANTS[heroIndex].subheading}
                   </p>
                 </div>
-
-                {/* 2x3 prompt grid — no "Prompts" label */}
+                <div className="mb-6 max-w-xl">
+                  <PromptContextForm
+                    context={promptContext}
+                    onChange={setPromptContext}
+                    playbookHint={playbook ? { company: playbook.company, industry: playbook.industry } : null}
+                  />
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {RESEARCH_TEMPLATES.map((tmpl) => {
                     const accentStyles: Record<string, { iconBg: string; iconColor: string; cardBorder: string; cardBg: string; cardHover: string }> = {
@@ -1233,11 +1507,13 @@ function ResearchPageInner() {
                     };
                     const s = accentStyles[tmpl.accent] ?? accentStyles.cyan;
                     const Icon = tmpl.Icon;
+                    const filledPrompt = fillPromptPlaceholders(tmpl.prompt, effectivePromptContext);
+                    const segments = promptContextMounted ? getPromptDisplaySegments(filledPrompt, effectivePromptContext) : null;
                     return (
                       <button
                         key={tmpl.id}
                         type="button"
-                        onClick={() => { setInput(tmpl.prompt); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                        onClick={() => { setInput(filledPrompt); setTimeout(() => textareaRef.current?.focus(), 50); }}
                         className="research-prompt-card text-left rounded-xl border p-5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.99]"
                         style={{
                           background: s.cardBg,
@@ -1254,7 +1530,17 @@ function ResearchPageInner() {
                           <Icon className="h-5 w-5" aria-hidden />
                         </div>
                         <h3 className="font-semibold text-sm mb-1.5" style={{ color: 'var(--wo-text)' }}>{tmpl.title}</h3>
-                        <p className="text-xs leading-relaxed" style={{ color: 'var(--wo-text-muted)' }}>{tmpl.prompt}</p>
+                        <p className="text-xs leading-relaxed" style={{ color: 'var(--wo-text-muted)' }}>
+                          {segments
+                            ? segments.map((seg, i) =>
+                                seg.type === 'filled'
+                                  ? <span key={i} className="underline decoration-2 decoration-[var(--wo-primary)] underline-offset-1" style={{ color: 'var(--wo-primary)' }}>{seg.text}</span>
+                                  : seg.type === 'placeholder'
+                                    ? <span key={i} className="underline decoration-dashed decoration-[var(--wo-text-muted)] underline-offset-1" style={{ color: 'var(--wo-text-muted)' }}>{seg.text}</span>
+                                    : seg.text
+                              )
+                            : filledPrompt}
+                        </p>
                       </button>
                     );
                   })}
@@ -1262,7 +1548,7 @@ function ResearchPageInner() {
               </div>
             </div>
 
-            {/* Fixed chat input — same height/size as when in conversation */}
+            {/* Input bar fixed at bottom */}
             <div className="flex-shrink-0 px-6 pb-5 pt-0 relative">
               <div className="max-w-3xl mx-auto relative">
                 <div className="wo-card p-3" style={{
@@ -1327,109 +1613,231 @@ function ResearchPageInner() {
           </>
         )}
 
-        {/* ── Chat Thread ── */}
+        {/* ── When chat started: thread + input on left; right = hover-to-reveal prompts (staircase/piano) ── */}
         {hasMessages && (
-          <div className="flex-1 overflow-y-auto relative" ref={scrollContainerRef}>
-            <div className="max-w-3xl mx-auto py-6 px-6">
-              {messages.map((msg, idx) =>
-                msg.role === 'user'
-                  ? <UserBubble key={idx} content={msg.content} />
-                  : <VivekBubble
-                      key={idx}
-                      msg={msg}
-                      onCopy={handleCopyToClipboard}
-                      researchQuery={messages.slice(0, idx).reverse().find((m) => m.role === 'user')?.content ?? ''}
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            {/* Left: chat thread + input */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden min-w-0">
+              <div className="flex-1 min-h-0 overflow-y-auto relative" ref={scrollContainerRef}>
+                <div className="max-w-3xl mx-auto py-6 px-6">
+                  {messages.map((msg, idx) =>
+                    msg.role === 'user'
+                      ? <UserBubble key={idx} content={msg.content} avatarUrl={userAvatarUrl} />
+                      : <VivekBubble
+                          key={idx}
+                          msg={msg}
+                          onCopy={handleCopyToClipboard}
+                          researchQuery={messages.slice(0, idx).reverse().find((m) => m.role === 'user')?.content ?? ''}
+                        />
+                  )}
+                  {loading && <VivekThinking />}
+                  <div ref={bottomRef} />
+                </div>
+                {showScrollBtn && (
+                  <button
+                    onClick={scrollToBottom}
+                    className="absolute bottom-4 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                    style={{
+                      background: 'var(--wo-surface)',
+                      border: '1px solid rgba(0,217,255,0.25)',
+                      color: 'var(--wo-text-muted)',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                    }}
+                    title="Scroll to bottom"
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-primary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--wo-primary)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-text-muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,217,255,0.25)'; }}
+                  >
+                    <ChevronDown className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex-shrink-0 px-6 pb-5 pt-0 relative">
+                <div className="absolute top-0 left-0 right-0 h-10 pointer-events-none"
+                  style={{ background: 'linear-gradient(to bottom, transparent, var(--wo-bg, #0f0f1a))' }} />
+                <div className="max-w-3xl mx-auto relative">
+                  <div className="wo-card p-3" style={{
+                    border: '1px solid rgba(0,217,255,0.18)',
+                    borderRadius: '18px',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,217,255,0.06), 0 2px 16px rgba(0,217,255,0.08)',
+                  }}>
+                    <textarea
+                      ref={textareaRef}
+                      placeholder="Follow up on anything…"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      disabled={loading}
+                      className="w-full resize-none border-none outline-none text-sm"
+                      style={{ background: 'transparent', color: 'var(--wo-text)', minHeight: '44px', maxHeight: '160px', overflowY: 'auto' }}
+                      rows={1}
                     />
-              )}
-              {loading && <VivekThinking />}
-              <div ref={bottomRef} />
-            </div>
-
-            {/* Scroll-to-bottom: circular down arrow (Vani Co-Pilot style) */}
-            {showScrollBtn && (
-              <button
-                onClick={scrollToBottom}
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full flex items-center justify-center transition-all"
-                style={{
-                  background: 'var(--wo-surface)',
-                  border: '1px solid rgba(0,217,255,0.25)',
-                  color: 'var(--wo-text-muted)',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                }}
-                title="Scroll to bottom"
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-primary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--wo-primary)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--wo-text-muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,217,255,0.25)'; }}
-              >
-                <ChevronDown className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ── Bottom Input Bar — only when conversation is active ── */}
-        {hasMessages && (
-          <div className="flex-shrink-0 px-6 pb-5 pt-0 relative">
-            {/* Gradient fade so messages blend into the input */}
-            <div className="absolute top-0 left-0 right-0 h-10 pointer-events-none"
-              style={{ background: 'linear-gradient(to bottom, transparent, var(--wo-bg, #0f0f1a))' }} />
-            <div className="max-w-3xl mx-auto relative">
-              <div className="wo-card p-3" style={{
-                border: '1px solid rgba(0,217,255,0.18)',
-                borderRadius: '18px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,217,255,0.06), 0 2px 16px rgba(0,217,255,0.08)',
-              }}>
-                <textarea
-                  ref={textareaRef}
-                  placeholder="Follow up on anything…"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={loading}
-                  className="w-full resize-none border-none outline-none text-sm"
-                  style={{ background: 'transparent', color: 'var(--wo-text)', minHeight: '44px', maxHeight: '160px', overflowY: 'auto' }}
-                  rows={1}
-                />
-                <div className="flex items-center justify-between pt-2 mt-1" style={{ borderTop: '1px solid var(--wo-border)' }}>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => router.push('/home/documents')} className="wo-btn wo-btn-ghost text-xs gap-1 py-1" title="Upload documents" disabled={loading}>
-                      <Plus className="w-3.5 h-3.5" /> Add Data
-                    </button>
-                    <button onClick={() => router.push('/home/opportunities')} className="wo-btn wo-btn-ghost text-xs gap-1 py-1" title="Go to Opportunities" disabled={loading}>
-                      <FileText className="w-3.5 h-3.5" /> Opportunity
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-                      style={{ background: 'rgba(0,217,255,0.08)', color: 'var(--wo-primary)', border: '1px solid rgba(0,217,255,0.2)' }}>
-                      <Globe className="w-3.5 h-3.5" /> Web ✓
-                    </span>
-                    {micSupported && (
-                      <div className="relative">
-                        {micListening && <span className="vani-mic-ring" />}
-                        <button
-                          onClick={micListening ? stopListening : startListening}
-                          disabled={loading}
-                          className={`p-2 rounded-xl transition-all disabled:opacity-40 ${micListening ? 'vani-mic-recording' : ''}`}
-                          style={micListening ? { background: '#ef4444', color: '#fff' } : { background: 'var(--wo-surface-2)', color: 'var(--wo-text-muted)' }}
-                          title={micListening ? 'Stop recording' : 'Speak your query'}
-                        >
-                          {micListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    <div className="flex items-center justify-between pt-2 mt-1" style={{ borderTop: '1px solid var(--wo-border)' }}>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => router.push('/home/documents')} className="wo-btn wo-btn-ghost text-xs gap-1 py-1" title="Upload documents" disabled={loading}>
+                          <Plus className="w-3.5 h-3.5" /> Add Data
+                        </button>
+                        <button onClick={() => router.push('/home/opportunities')} className="wo-btn wo-btn-ghost text-xs gap-1 py-1" title="Go to Opportunities" disabled={loading}>
+                          <FileText className="w-3.5 h-3.5" /> Opportunity
                         </button>
                       </div>
-                    )}
-                    <button onClick={() => sendMessage(input)} disabled={!input.trim() || loading}
-                      className="wo-btn wo-btn-primary p-2 rounded-xl disabled:opacity-40" title="Send (Enter)">
-                      <Send className="w-4 h-4" />
-                    </button>
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                          style={{ background: 'rgba(0,217,255,0.08)', color: 'var(--wo-primary)', border: '1px solid rgba(0,217,255,0.2)' }}>
+                          <Globe className="w-3.5 h-3.5" /> Web ✓
+                        </span>
+                        {micSupported && (
+                          <div className="relative">
+                            {micListening && <span className="vani-mic-ring" />}
+                            <button
+                              onClick={micListening ? stopListening : startListening}
+                              disabled={loading}
+                              className={`p-2 rounded-xl transition-all disabled:opacity-40 ${micListening ? 'vani-mic-recording' : ''}`}
+                              style={micListening ? { background: '#ef4444', color: '#fff' } : { background: 'var(--wo-surface-2)', color: 'var(--wo-text-muted)' }}
+                              title={micListening ? 'Stop recording' : 'Speak your query'}
+                            >
+                              {micListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        )}
+                        <button onClick={() => sendMessage(input)} disabled={!input.trim() || loading}
+                          className="wo-btn wo-btn-primary p-2 rounded-xl disabled:opacity-40" title="Send (Enter)">
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
+                  {micError && <p className="text-center text-xs mt-1" style={{ color: '#ef4444' }}>{micError}</p>}
+                  {micListening && <p className="text-center text-xs mt-1" style={{ color: '#ef4444' }}>Listening… speak now, then click the mic to stop</p>}
+                  {!micListening && !micError && (
+                    <p className="text-center text-xs mt-2" style={{ color: 'var(--wo-text-muted)' }}>
+                      Vivek can make mistakes. Verify important information.
+                    </p>
+                  )}
                 </div>
               </div>
-              {micError && <p className="text-center text-xs mt-1" style={{ color: '#ef4444' }}>{micError}</p>}
-              {micListening && <p className="text-center text-xs mt-1" style={{ color: '#ef4444' }}>Listening… speak now, then click the mic to stop</p>}
-              {!micListening && !micError && (
-                <p className="text-center text-xs mt-2" style={{ color: 'var(--wo-text-muted)' }}>
-                  Vivek can make mistakes. Verify important information.
-                </p>
+            </div>
+
+            {/* Right: hidden until hover — prompts panel with staircase/piano animation */}
+            <div
+              className="flex-shrink-0 flex transition-[width] duration-200 ease-out overflow-hidden"
+              style={{ width: promptsPanelExpanded ? 280 : 20 }}
+              onMouseEnter={() => {
+                if (promptsPanelLeaveRef.current) {
+                  clearTimeout(promptsPanelLeaveRef.current);
+                  promptsPanelLeaveRef.current = null;
+                }
+                setPromptsPanelExpanded(true);
+              }}
+              onMouseLeave={() => {
+                if (!promptsPanelPinned) {
+                  promptsPanelLeaveRef.current = setTimeout(() => setPromptsPanelExpanded(false), PROMPTS_PANEL_LEAVE_DELAY_MS);
+                }
+              }}
+            >
+              {!promptsPanelExpanded && (
+                <div
+                  className="w-5 h-full flex items-center justify-center flex-shrink-0 cursor-default py-4"
+                  style={{ background: 'var(--wo-surface-2)', borderLeft: '1px solid var(--wo-border)' }}
+                  title="Hover for prompts"
+                >
+                  <span className="text-[10px] font-medium uppercase tracking-wider whitespace-nowrap -rotate-90 origin-center" style={{ color: 'var(--wo-text-muted)' }}>
+                    Prompts
+                  </span>
+                </div>
+              )}
+              {promptsPanelExpanded && (
+                <aside
+                  className="w-[280px] flex-shrink-0 h-full flex flex-col overflow-hidden border-l py-4 px-3"
+                  style={{ borderColor: 'var(--wo-border)', background: 'var(--wo-surface-2)' }}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--wo-text-muted)' }}>Quick prompts</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !promptsPanelPinned;
+                        setPromptsPanelPinned(next);
+                        if (!next) setPromptsPanelExpanded(false);
+                      }}
+                      className="p-1.5 rounded-lg transition-colors"
+                      style={{ color: promptsPanelPinned ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }}
+                      title={promptsPanelPinned ? 'Unpin panel' : 'Pin panel open'}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--wo-hover-btn)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    >
+                      <Pin className={`w-4 h-4 ${promptsPanelPinned ? '' : 'opacity-60'}`} strokeWidth={2} style={{ transform: promptsPanelPinned ? 'rotate(-45deg)' : 'none' }} />
+                    </button>
+                  </div>
+                  <div className="flex-shrink-0 mb-3">
+                    <PromptContextForm
+                      compact
+                      context={promptContext}
+                      onChange={setPromptContext}
+                      playbookHint={playbook ? { company: playbook.company, industry: playbook.industry } : null}
+                    />
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible py-1 pr-1 hide-scrollbar space-y-2">
+                    {RESEARCH_TEMPLATES.map((tmpl, index) => {
+                      const accentStyles: Record<string, { iconBg: string; iconColor: string; cardBorder: string; cardBg: string; cardHover: string }> = {
+                        violet:  { iconBg: 'rgba(139,92,246,0.2)', iconColor: '#a78bfa', cardBorder: 'rgba(139,92,246,0.3)', cardBg: 'rgba(139,92,246,0.06)', cardHover: 'rgba(139,92,246,0.12)' },
+                        cyan:     { iconBg: 'rgba(0,217,255,0.15)', iconColor: 'var(--wo-primary)', cardBorder: 'rgba(0,217,255,0.25)', cardBg: 'rgba(0,217,255,0.04)', cardHover: 'rgba(0,217,255,0.1)' },
+                        emerald: { iconBg: 'rgba(16,185,129,0.2)', iconColor: '#34d399', cardBorder: 'rgba(16,185,129,0.3)', cardBg: 'rgba(16,185,129,0.06)', cardHover: 'rgba(16,185,129,0.12)' },
+                        orange:  { iconBg: 'rgba(249,115,22,0.2)', iconColor: '#fb923c', cardBorder: 'rgba(249,115,22,0.3)', cardBg: 'rgba(249,115,22,0.06)', cardHover: 'rgba(249,115,22,0.12)' },
+                        pink:    { iconBg: 'rgba(236,72,153,0.2)', iconColor: '#f472b6', cardBorder: 'rgba(236,72,153,0.3)', cardBg: 'rgba(236,72,153,0.06)', cardHover: 'rgba(236,72,153,0.12)' },
+                        amber:   { iconBg: 'rgba(245,158,11,0.2)', iconColor: '#fbbf24', cardBorder: 'rgba(245,158,11,0.3)', cardBg: 'rgba(245,158,11,0.06)', cardHover: 'rgba(245,158,11,0.12)' },
+                      };
+                      const s = accentStyles[tmpl.accent] ?? accentStyles.cyan;
+                      const Icon = tmpl.Icon;
+                      const filledPrompt = fillPromptPlaceholders(tmpl.prompt, effectivePromptContext);
+                      const segments = promptContextMounted ? getPromptDisplaySegments(filledPrompt, effectivePromptContext) : null;
+                      const isHovered = hoveredPromptIndex === index;
+                      const stepOffset = 10;
+                      return (
+                        <button
+                          key={tmpl.id}
+                          type="button"
+                          onClick={() => { setInput(filledPrompt); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                          onMouseEnter={() => setHoveredPromptIndex(index)}
+                          onMouseLeave={() => setHoveredPromptIndex(null)}
+                          className="research-piano-card w-full text-left rounded-xl border p-3 transition-all duration-200 ease-out z-10"
+                          style={{
+                            marginLeft: index * stepOffset,
+                            transform: isHovered ? 'translateX(-8px) scale(1.18)' : 'translateX(0) scale(1)',
+                            transformOrigin: 'left center',
+                            background: isHovered ? s.cardHover : s.cardBg,
+                            borderColor: s.cardBorder,
+                            color: 'var(--wo-text)',
+                            boxShadow: isHovered ? '0 8px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <div
+                              className="flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0"
+                              style={{ background: s.iconBg, color: s.iconColor }}
+                            >
+                              <Icon className="h-4 w-4" aria-hidden />
+                            </div>
+                            <h3 className="font-semibold text-xs truncate" style={{ color: 'var(--wo-text)' }}>{tmpl.title}</h3>
+                          </div>
+                          <p
+                            className={`text-[11px] leading-relaxed pl-10 ${isHovered ? 'max-h-[220px] overflow-y-auto pr-1' : 'line-clamp-2'}`}
+                            style={{ color: 'var(--wo-text-muted)' }}
+                          >
+                            {segments
+                              ? segments.map((seg, i) =>
+                                  seg.type === 'filled'
+                                    ? <span key={i} className="underline decoration-2 decoration-[var(--wo-primary)] underline-offset-1" style={{ color: 'var(--wo-primary)' }}>{seg.text}</span>
+                                    : seg.type === 'placeholder'
+                                      ? <span key={i} className="underline decoration-dashed decoration-[var(--wo-text-muted)] underline-offset-1" style={{ color: 'var(--wo-text-muted)' }}>{seg.text}</span>
+                                      : seg.text
+                                )
+                              : filledPrompt}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </aside>
               )}
             </div>
           </div>
