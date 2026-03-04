@@ -250,8 +250,12 @@ if (-not (Test-Path $envLocalPath)) {
     }
 }
 
-# ========== STEP 4: PERMISSIONS ==========
+# ========== STEP 4: NORMALIZE .sh LINE ENDINGS + PERMISSIONS ==========
 Write-Step 'Step 4: Script permissions' 'Yellow'
+# Fix CRLF in .sh files on VM (Windows line endings cause "No such file or directory" for shebang)
+$fixShCmd = 'find ' + $RemoteProjectPath + ' -name "*.sh" -type f -exec sed -i "s/\\r$//" {} \\; 2>/dev/null; true'
+Invoke-SshCommand $fixShCmd -NoOutput
+Write-Info 'Normalized .sh line endings (CRLF -> LF)'
 $chmodCmd = 'cd ' + $RemoteProjectPath + '; find . -name ' + $dq + '*.sh' + $dq + ' -type f -exec chmod +x {} \;'
 Invoke-SshCommand $chmodCmd -NoOutput
 Write-Success 'chmod +x *.sh'
@@ -266,6 +270,10 @@ try {
     $deployCmd = 'cd ' + $RemoteProjectPath + '; ./manage-vaniai-app.sh full-deploy 2>&1'
     $out = Invoke-SshCommand $deployCmd
     Write-Host $out
+    if ($out -match 'No such file or directory') {
+        Write-Error 'manage-vaniai-app.sh not found or bad line endings on VM. Step 4 normalizes .sh files; re-run deploy.'
+        exit 1
+    }
     if ($out -match 'ERROR|Failed|fatal') {
         Write-Error 'Deploy may have failed; check output above'
         exit 1
