@@ -7,6 +7,15 @@ ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+# Placeholders so modules that read env at load time (e.g. kb.ts, agents.ts, email.ts) don't throw during "Collecting page data".
+# Real values come from env_file: .env at runtime.
+ENV OPENAI_API_KEY=build-placeholder
+ENV ANTHROPIC_API_KEY=build-placeholder
+ENV GOOGLE_AI_API_KEY=build-placeholder
+ENV PERPLEXITY_API_KEY=build-placeholder
+ENV SUPABASE_SERVICE_ROLE_KEY=build-placeholder
+ENV RESEND_API_KEY=build-placeholder
+
 COPY package*.json ./
 RUN npm ci
 
