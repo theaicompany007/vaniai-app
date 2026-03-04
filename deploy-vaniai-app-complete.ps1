@@ -198,27 +198,40 @@ if ($FreshClone -and ($projectExists -match 'exists')) {
 }
 if ($FreshClone -or ($projectExists -match 'missing')) {
     Write-Info 'Cloning from GitHub...'
-    $cloneLines = @(
-        'export GIT_SSH_COMMAND=''ssh -i /home/postgres/.ssh/id_ed25519_theaicompany -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -F /dev/null''',
-        'cd /home/postgres',
-        ('git clone ' + $GitHubRepoSsh + ' vaniai-app')
-    )
+    $cloneRepoUrl = if ($useHttpsMethod) { $GitHubRepoHttps } else { $GitHubRepoSsh }
+    if ($useHttpsMethod) {
+        $cloneLines = @('cd /home/postgres', ('git clone ' + $cloneRepoUrl + ' vaniai-app'))
+    } else {
+        $cloneLines = @(
+            'export GIT_SSH_COMMAND=''ssh -i /home/postgres/.ssh/id_ed25519_theaicompany -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -F /dev/null''',
+            'cd /home/postgres',
+            ('git clone ' + $cloneRepoUrl + ' vaniai-app')
+        )
+    }
     $cloneScript = $cloneLines -join [char]10
     $tmp = [System.IO.Path]::GetTempFileName()
     [System.IO.File]::WriteAllText($tmp, $cloneScript, (New-Object System.Text.UTF8Encoding $false))
     Invoke-ScpCommand $tmp '/tmp/clone-vaniai.sh'
     $runClone = 'chmod +x /tmp/clone-vaniai.sh; /tmp/clone-vaniai.sh 2>&1; rm -f /tmp/clone-vaniai.sh'
-    Invoke-SshCommand $runClone
+    $cloneOut = Invoke-SshCommand $runClone
+    if ($cloneOut -match 'Permission denied|fatal: Could not read|fatal:.*failed') {
+        Write-Error 'Clone failed on VM. With -GitHubMethod https we use HTTPS on VM; otherwise add VM deploy key to repo.'
+        Write-Host $cloneOut
+        exit 1
+    }
     Remove-Item $tmp -ErrorAction SilentlyContinue
     Write-Success 'Cloned'
 } else {
     Write-Info 'Pulling latest...'
+    $pullRepoUrl = if ($useHttpsMethod) { $GitHubRepoHttps } else { $GitHubRepoSsh }
     $pullLines = @(
-        'export GIT_SSH_COMMAND=''ssh -i /home/postgres/.ssh/id_ed25519_theaicompany -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -F /dev/null''',
         ('cd ' + $RemoteProjectPath),
-        ('git remote set-url origin ' + $GitHubRepoSsh),
+        ('git remote set-url origin ' + $pullRepoUrl),
         'git pull origin main'
     )
+    if (-not $useHttpsMethod) {
+        $pullLines = @('export GIT_SSH_COMMAND=''ssh -i /home/postgres/.ssh/id_ed25519_theaicompany -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -F /dev/null''') + $pullLines
+    }
     $pullScript = $pullLines -join [char]10
     $tmp = [System.IO.Path]::GetTempFileName()
     [System.IO.File]::WriteAllText($tmp, $pullScript, (New-Object System.Text.UTF8Encoding $false))
@@ -241,7 +254,7 @@ if (-not (Test-Path $envLocalPath)) {
     Write-Success 'Copied .env.local'
     Write-Info ('Running set-env-mode.sh ' + $VaniaAIEnvironment + ' (comment dev / enable prod or vice versa)...')
     try {
-        $setEnvCmd = 'cd ' + $RemoteProjectPath + '; chmod +x set-env-mode.sh 2>/dev/null; ./set-env-mode.sh ' + $VaniaAIEnvironment + ' 2>&1'
+        $setEnvCmd = 'cd ' + $RemoteProjectPath + '; bash set-env-mode.sh ' + $VaniaAIEnvironment + ' 2>&1'
         Invoke-SshCommand $setEnvCmd
         Write-Success ('Env mode set to ' + $VaniaAIEnvironment + '; .env generated for container')
     } catch {
@@ -253,10 +266,11 @@ if (-not (Test-Path $envLocalPath)) {
 # ========== STEP 4: NORMALIZE .sh LINE ENDINGS + PERMISSIONS ==========
 Write-Step 'Step 4: Script permissions' 'Yellow'
 # Fix CRLF in .sh files on VM (Windows line endings cause "No such file or directory" for shebang)
-$fixShCmd = 'find ' + $RemoteProjectPath + ' -name "*.sh" -type f -exec sed -i "s/\\r$//" {} \\; 2>/dev/null; true'
+$fixShCmd = 'find ' + $RemoteProjectPath + ' -name ''*.sh'' -type f -exec sed -i ''s/\\r$//'' {} \\; 2>/dev/null; true'
 Invoke-SshCommand $fixShCmd -NoOutput
 Write-Info 'Normalized .sh line endings (CRLF -> LF)'
-$chmodCmd = 'cd ' + $RemoteProjectPath + '; find . -name ' + $dq + '*.sh' + $dq + ' -type f -exec chmod +x {} \;'
+# Use single quotes for find -name so the command is not broken when passed through gcloud ssh
+$chmodCmd = 'cd ' + $RemoteProjectPath + '; find . -name ''*.sh'' -type f -exec chmod +x {} \\;'
 Invoke-SshCommand $chmodCmd -NoOutput
 Write-Success 'chmod +x *.sh'
 
