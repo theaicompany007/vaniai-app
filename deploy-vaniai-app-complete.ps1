@@ -155,14 +155,19 @@ if (-not $SkipPush) {
     }
     try {
         $pushOut = & git push origin $branch 2>&1 | Out-String
-        if ($pushOut -match 'Permission denied|fatal:.*failed|ERROR') {
+        # "Everything up-to-date" is success (nothing new to push)
+        if ($pushOut -match 'Everything up-to-date') {
+            Write-Success 'Repository is up-to-date (nothing to push)'
+        } elseif ($pushOut -match 'Permission denied|fatal:.*failed|ERROR') {
             if (-not $useHttpsMethod) {
                 Configure-GitRemote -UseHttps $true
                 & git push origin $branch 2>&1 | Out-Null
                 if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
                 Write-Success 'Pushed via HTTPS fallback'
             } else { throw 'Push failed' }
-        } else { Write-Success 'Pushed to GitHub' }
+        } else {
+            Write-Success 'Pushed to GitHub'
+        }
     } catch {
         Write-Error ('Push failed: ' + $_)
         exit 1
