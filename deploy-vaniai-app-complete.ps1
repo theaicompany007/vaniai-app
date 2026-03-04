@@ -155,21 +155,22 @@ if (-not $SkipPush) {
     }
     try {
         # Run push without pipeline so $LASTEXITCODE is from git
-        $pushOut = & git push origin $branch 2>&1
+        $pushOutRaw = & git push origin $branch 2>&1
         $pushExitCode = $LASTEXITCODE
-        if ($null -eq $pushOut) { $pushOut = '' }
-        elseif ($pushOut -isnot [string]) { $pushOut = $pushOut | Out-String }
-        # Auth errors: try HTTPS fallback or fail
-        if ($pushOut -match 'Permission denied|fatal:.*failed|ERROR: Repository not found|fatal:.*authentication failed') {
+        $pushOut = if ($null -eq $pushOutRaw) { '' } else { [string]::Join([char]10, @($pushOutRaw)) }
+        # Check SUCCESS first (so we never treat success as failure)
+        if ($pushExitCode -eq 0) {
+            if ($pushOut -like '*Everything up-to-date*') { Write-Success 'Repository is up-to-date (nothing to push)' }
+            else { Write-Success 'Pushed to GitHub' }
+        } elseif ($pushOut -like '*Everything up-to-date*' -or $pushOut -like '*main -> main*' -or $pushOut -like '* -> *') {
+            Write-Success 'Pushed to GitHub'
+        } elseif ($pushOut -match 'Permission denied|fatal:.*failed|ERROR: Repository not found|fatal:.*authentication failed') {
             if (-not $useHttpsMethod) {
                 Configure-GitRemote -UseHttps $true
                 & git push origin $branch 2>&1 | Out-Null
                 if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
                 Write-Success 'Pushed via HTTPS fallback'
             } else { throw 'Push failed' }
-        } elseif ($pushExitCode -eq 0 -or $pushOut -match 'Everything up-to-date' -or $pushOut -match 'main -> main' -or $pushOut -match ' -> ') {
-            if ($pushOut -match 'Everything up-to-date') { Write-Success 'Repository is up-to-date (nothing to push)' }
-            else { Write-Success 'Pushed to GitHub' }
         } else {
             throw ('Push failed (exit ' + $pushExitCode + ')')
         }
