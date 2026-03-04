@@ -17,6 +17,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3100
+      - HOSTNAME=0.0.0.0
     networks:
       - shared-infra-network
 
