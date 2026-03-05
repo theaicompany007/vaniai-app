@@ -3,13 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePlaybook } from '@/context/PlaybookContext';
+import { INDUSTRY_OPTIONS } from '@/lib/constants';
 import { Map, X } from 'lucide-react';
-
-const INDUSTRIES = [
-  'FMCG', 'Banking', 'Healthcare', 'Retail', 'Manufacturing',
-  'Technology', 'E-commerce', 'Automotive', 'Telecom', 'Education',
-  'Insurance', 'Pharma', 'Logistics', 'Media',
-];
 
 interface Props {
   onClose: () => void;
@@ -91,7 +86,7 @@ export default function PlaybookStartModal({ onClose, onStart, existingCompany }
             Industry <span style={{ color: 'var(--wo-text-muted)', fontWeight: 400 }}>(optional)</span>
           </label>
           <div className="flex flex-wrap gap-1.5">
-            {INDUSTRIES.map(ind => {
+            {INDUSTRY_OPTIONS.map(ind => {
               const active = !showCustom && industry === ind;
               return (
                 <button

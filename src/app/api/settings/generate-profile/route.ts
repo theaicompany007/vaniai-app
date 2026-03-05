@@ -47,14 +47,14 @@ function buildPrompt(website_url: string, pageContent: string) {
     : `\nNote: The website could not be fetched. Use your knowledge of the domain/company if available.\n`;
 
   return `
-You are an AI assistant helping a B2B sales consultant configure their sales intelligence tool.
+You are an AI assistant helping configure a sales intelligence tool for a company. The company can be in any industry (e.g. technology, energy, telecom, reputation management, retail, healthcare, conglomerate).
 
 The user's company website is: ${website_url}
 ${contentSection}
 Based on the above content, extract and return a JSON object with EXACTLY these fields:
 {
   "company_name": "Official company name",
-  "industry": "Primary industry (e.g. Technology Consulting, AI/GenAI, FMCG, Manufacturing, Banking)",
+  "industry": "Primary industry — use whatever fits the website (e.g. Technology Consulting, Energy, Telecom, Reputation Management, FMCG, Manufacturing, Banking, Hospitality)",
   "description": "REQUIRED: Write EXACTLY 3 full paragraphs separated by \\n\\n. Each paragraph must be 3-5 sentences long.\\nParagraph 1 — Company overview: who they are, founding story or mission, what market problem they solve.\\nParagraph 2 — Products & services: specific named products/platforms, what they do, how they work, key capabilities.\\nParagraph 3 — Target market & differentiation: who they sell to (industries, company sizes, personas), why customers choose them, key outcomes/results they deliver.",
   "services": ["Specific service or product name 1", "Specific service 2", "Specific service 3", "Specific service 4", "Specific service 5", "Specific service 6"],
   "target_personas": ["Job Title 1", "Job Title 2", "Job Title 3", "Job Title 4"],

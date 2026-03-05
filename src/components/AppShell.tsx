@@ -33,7 +33,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
         <main
-          className="flex flex-1 flex-col min-h-0 overflow-hidden min-w-0"
+          className="flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto overflow-x-hidden"
           style={{ background: 'var(--wo-bg)', transition: 'background 0.25s ease' }}
         >
           {children}

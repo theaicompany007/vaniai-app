@@ -7,29 +7,34 @@ import { requireAuth } from '@/lib/api-helpers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { agentLoop, searchWeb, type AgentTool } from '@/lib/agents';
 import { checkUsageLimit } from '@/lib/usage';
+import { ALL_SIGNAL_TYPES } from '@/lib/constants';
 
 const SYSTEM_PROMPT = `You are Vigil, an AI signal intelligence agent for B2B sales teams.
-Your job is to find high-quality buying signals — events that indicate a company may need IT services, digital transformation, AI/GenAI platforms, cloud migration, or ERP implementation.
+Your job is to find high-quality buying signals — events that indicate a company or person may need this organization's products or services.
 
-Buying signal categories to look for:
-- Leadership changes (new CTO, CDO, CIO appointed)
+Use the OUR COMPANY CONTEXT block below for: our services, target industries, target personas (decision-makers we sell to), and geography. Find signals that are relevant to those offerings and that audience.
+
+Buying signal categories (use the tag that best fits; prefer the types listed in our context when present):
+- Leadership changes (new appointments in roles we sell to)
 - Funding rounds (Series A/B/C, PE investment)
 - Expansion news (new markets, offices, product lines)
-- Technology investment (AI adoption, digital transformation announcements)
-- Regulatory/compliance challenges (data privacy, GDPR, sector regulations)
+- Technology or capability investment (relevant to our services)
+- Regulatory/compliance challenges
 - M&A activity (acquisitions, mergers)
+- Reputation or brand events (if relevant to our services)
+- Other triggers that indicate buying intent for our offerings
 
 For each signal, call save_signal with:
 - company: company name
 - company_initials: 2-letter abbreviation (e.g. "TC")
 - title: concise signal headline (max 80 chars)
 - summary: 2-3 sentence description with the signal details
-- score: relevance score 1.0-5.0 based on buying intent
-- tag: one of 'Funding', 'Expansion', 'Leadership', 'Tech Adoption', 'M&A', 'Regulatory'
+- score: relevance score 1.0-5.0 based on buying intent for OUR services
+- tag: one of: ${ALL_SIGNAL_TYPES.join(', ')} — pick the best fit
 - source: news source name (e.g. "Economic Times", "Business Standard", "Reuters")
 - url: the EXACT article URL from search results — see CRITICAL URL RULE below
-- services: array of our services that apply: 'AI/GenAI', 'Cloud', 'ERP', 'Digital Transformation', 'Data Analytics'
-- ai_relevance: 1-2 sentence explanation of why this matters for us
+- services: JSON array of applicable services FROM OUR SERVICES LIST in the context (use our exact service names)
+- ai_relevance: 1-2 sentence explanation of why this signal matters for us
 
 CRITICAL URL RULE — READ THIS:
 - ONLY use the exact URL returned by the search_news tool in the url field.
@@ -37,10 +42,7 @@ CRITICAL URL RULE — READ THIS:
 - NEVER fabricate, guess, or construct a URL. NEVER use example.com or any placeholder URL.
 - A missing URL is far better than a wrong one.
 
-IMPORTANT — When you find a Leadership signal (new CTO, CDO, CIO, VP of Technology, or similar):
-Also call save_contact for that person. Search specifically for their LinkedIn profile URL and phone/mobile number. Pass whatever you find — all fields are optional except name, job_title, company.
-
-Focus on Indian companies. Our key service offerings: IT consulting, AI/GenAI platforms, cloud migration, ERP implementation, digital transformation.`;
+When you find a Leadership (or relevant persona) signal: also call save_contact for that person. Use the target personas from our context. Search for their LinkedIn URL and phone when possible. All fields optional except name, job_title, company.`;
 
 const VIGIL_TOOLS: AgentTool[] = [
   {
@@ -85,8 +87,9 @@ const VIGIL_TOOLS: AgentTool[] = [
   },
 ];
 
-/** Build an org-context block to inject into Vigil's system prompt. */
-async function buildOrgContext(orgId: string): Promise<string> {
+/** Build org-context block and search suffix for Vigil. */
+async function buildOrgContext(orgId: string): Promise<{ context: string; searchSuffix: string }> {
+  const empty = { context: '', searchSuffix: 'India' };
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin
@@ -94,7 +97,7 @@ async function buildOrgContext(orgId: string): Promise<string> {
       .select('name, profile, org_settings')
       .eq('id', orgId)
       .single();
-    if (!data) return '';
+    if (!data) return empty;
     const p = (data.profile ?? {}) as Record<string, unknown>;
     const s = ((data as Record<string, unknown>).org_settings ?? {}) as Record<string, unknown>;
     const monitoring = (s.monitoring ?? {}) as Record<string, unknown>;
@@ -106,8 +109,10 @@ async function buildOrgContext(orgId: string): Promise<string> {
     const ourIndustries = typeof p.industry === 'string' ? p.industry : '';
     const clientNames: string[] = Array.isArray(p.client_names) ? p.client_names as string[] : [];
     const salesTriggers = (p.sales_triggers as { category: string; description: string }[] | undefined) ?? [];
+    const geography: string[] = Array.isArray(p.target_geography) ? p.target_geography as string[] : [];
+    const targetIndustry: string[] = Array.isArray(monitoring.industries) ? monitoring.industries as string[]
+      : Array.isArray(p.target_industry) ? p.target_industry as string[] : [];
 
-    // Prefer monitoring-specific settings over profile defaults
     const personas: string[] = Array.isArray(monitoring.personas) ? monitoring.personas as string[]
       : Array.isArray(p.target_personas) ? p.target_personas as string[] : [];
     const industries: string[] = Array.isArray(monitoring.industries) ? monitoring.industries as string[]
@@ -127,9 +132,14 @@ async function buildOrgContext(orgId: string): Promise<string> {
     if (signalTypes.length) lines.push(`- Prioritise these signal types: ${signalTypes.join(', ')}`);
     if (clientNames.length) lines.push(`- Notable clients: ${clientNames.join(', ')}`);
     if (salesTriggers.length) lines.push(`- Sales triggers we care about: ${salesTriggers.map(t => t.category).join(', ')}`);
-    return lines.length > 1 ? lines.join('\n') : '';
+
+    const searchSuffix = [...geography.slice(0, 1), ...targetIndustry.slice(0, 1)].filter(Boolean).join(' ') || 'India';
+    return {
+      context: lines.length > 1 ? lines.join('\n') : '',
+      searchSuffix,
+    };
   } catch {
-    return '';
+    return empty;
   }
 }
 
@@ -154,16 +164,16 @@ export async function POST(req: Request) {
     ? keywords.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
     : [];
 
+  // Load org profile first so we can tailor the user message
+  const { context: orgContext, searchSuffix } = await buildOrgContext(ctx.orgId);
+
   const userMessage = focusCompanies.length > 0
-    ? `Search for ${limit} high-quality buying signals for B2B IT sales.
+    ? `Search for ${limit} high-quality buying signals relevant to our offerings.
 CRITICAL: The user has requested signals for these specific companies — you MUST find and save signals for them: ${focusCompanies.join(', ')}.
 Your first search_news query MUST include these company names (e.g. "${focusCompanies[0]} news funding expansion 2025"). Prefer signals about these companies over others.
 ${industries ? `Industries: ${industries}. ` : ''}Search for recent news from the last 2 weeks. Save each signal using save_signal.`
-    : `Search for ${limit} high-quality buying signals for B2B IT sales.
-${industries ? `Industries: ${industries}. ` : ''}Focus on Indian enterprise companies. Search for recent news from the last 2 weeks. Find signals that indicate technology buying intent. Save each signal using save_signal.`;
-
-  // Load org profile and build context-aware system prompt
-  const orgContext = await buildOrgContext(ctx.orgId);
+    : `Search for ${limit} high-quality buying signals relevant to our offerings (use OUR COMPANY CONTEXT above).
+${industries ? `Industries: ${industries}. ` : ''}Search for recent news from the last 2 weeks. Find signals that indicate buying intent for our services. Save each signal using save_signal.`;
   const dynamicSystem = orgContext
     ? `${SYSTEM_PROMPT}\n\n${orgContext}`
     : SYSTEM_PROMPT;
@@ -204,7 +214,7 @@ ${industries ? `Industries: ${industries}. ` : ''}Focus on Indian enterprise com
         if (name === 'search_news') {
           const query = input.query as string;
           const dateRange = (input.date_range as string) ?? 'last 2 weeks';
-          const results = await searchWeb(`${query} ${dateRange} India enterprise technology`);
+          const results = await searchWeb(`${query} ${dateRange} ${searchSuffix}`);
           return results;
         }
 
@@ -278,6 +288,12 @@ function getTagColor(tag: string): string {
     'Tech Adoption': 'cyan',
     'M&A': 'orange',
     Regulatory: 'red',
+    Challenges: 'orange',
+    'Business Initiatives': 'cyan',
+    'Reputation Crisis': 'red',
+    'Negative Reviews': 'orange',
+    'Bad Publicity': 'red',
+    Scandal: 'red',
   };
   return map[tag] ?? 'blue';
 }

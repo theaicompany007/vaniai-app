@@ -257,6 +257,11 @@ if (-not (Test-Path $envLocalPath)) {
         $setEnvCmd = 'cd ' + $RemoteProjectPath + '; bash set-env-mode.sh ' + $VaniaAIEnvironment + ' 2>&1'
         Invoke-SshCommand $setEnvCmd
         Write-Success ('Env mode set to ' + $VaniaAIEnvironment + '; .env generated for container')
+        if ($VaniaAIEnvironment -eq 'prod') {
+            $logLevelCmd = 'cd ' + $RemoteProjectPath + '; (grep -q "^DEBUG=" .env.local 2>/dev/null && sed -i "s|^DEBUG=.*|DEBUG=false|" .env.local || echo "DEBUG=false" >> .env.local); (grep -q "^LOG_LEVEL=" .env.local 2>/dev/null && sed -i "s|^LOG_LEVEL=.*|LOG_LEVEL=info|" .env.local || echo "LOG_LEVEL=info" >> .env.local); cp .env.local .env; echo "prod_log_level_applied"'
+            Invoke-SshCommand $logLevelCmd -NoOutput
+            Write-Info 'Set DEBUG=false, LOG_LEVEL=info for production'
+        }
     } catch {
         Write-Warning ('set-env-mode.sh failed: ' + $_)
         Write-Info 'Ensure .env.local has # --- DEV --- and # --- PROD --- sections. See set-env-mode.sh for format.'

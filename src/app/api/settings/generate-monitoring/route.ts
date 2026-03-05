@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-helpers';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { INDUSTRY_OPTIONS, ALL_SIGNAL_TYPES } from '@/lib/constants';
 
 type Provider = 'anthropic' | 'openai' | 'gemini';
 const PROVIDER = (process.env.LLM_PROVIDER ?? 'anthropic') as Provider;
@@ -119,9 +120,9 @@ Return a JSON object with EXACTLY these fields:
 
 Rules:
 - keywords: 8-12 specific terms/phrases to monitor in news (e.g. technology terms, business events, product names relevant to what this company sells). Mix broad and specific.
-- industries: 4-8 industries from this list only: FMCG, Banking, Healthcare, Retail, Manufacturing, Technology, E-commerce, Automotive, Telecom, Education, Insurance, Pharma, Logistics, Media, Financial Services, Real Estate, Energy, Government
-- personas: 4-8 senior job titles this company should track for leadership change signals (e.g. "CIO", "CTO", "CDO", "Head of Digital"). These are the decision-makers most likely to buy what this company sells.
-- signal_types: select ALL that apply from: Funding, Expansion, Leadership, Tech Adoption, M&A, Regulatory, Challenges, Business Initiatives
+- industries: 4-8 industries from this list only: ${INDUSTRY_OPTIONS.join(', ')}
+- personas: 4-8 senior job titles this company should track for leadership change signals (e.g. "CIO", "CTO", "CEO", "Marketing Head", "Head of Digital"). These are the decision-makers most likely to buy what this company sells.
+- signal_types: select ALL that apply from: ${ALL_SIGNAL_TYPES.join(', ')}
 
 Return ONLY valid JSON. No markdown, no explanation.
 `.trim();

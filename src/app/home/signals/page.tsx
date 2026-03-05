@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SlidersHorizontal, Bookmark, Search, Clock, Zap, Flame, RefreshCw, X } from 'lucide-react';
 import SignalCard from '@/components/SignalCard';
+import { ALL_SIGNAL_TYPES } from '@/lib/constants';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import type { Signal } from '@/lib/mock-data';
 
@@ -29,7 +30,7 @@ function toSignal(r: DbSignal): Signal {
   };
 }
 
-const SIGNAL_TAGS = ['FMCG', 'Hiring', 'Funding', 'Leadership', 'Tech', 'Cloud', 'AI', 'Expansion', 'Regulatory', 'Partnership'];
+const SIGNAL_TAGS = ALL_SIGNAL_TYPES;
 
 function SignalsPageInner() {
   const searchParams = useSearchParams();

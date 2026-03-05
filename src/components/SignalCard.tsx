@@ -12,6 +12,8 @@ const TAG_COLORS: Record<string, string> = {
   purple: 'wo-tag-purple',
   orange: 'wo-tag-orange',
   yellow: 'wo-tag-yellow',
+  red:    'wo-tag-orange', // reuse orange for red tags
+  cyan:   'wo-tag-blue',
 };
 
 function ScoreDots({ score }: { score: number }) {

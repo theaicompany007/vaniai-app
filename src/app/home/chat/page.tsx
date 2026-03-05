@@ -557,8 +557,8 @@ export default function ChatPage() {
             <div className="text-center py-8 px-4">
               <MessageSquare className="w-6 h-6 mx-auto mb-2" style={{ color: 'var(--wo-text-muted)' }} />
               <p className="text-xs" style={{ color: 'var(--wo-text-muted)' }}>No chat yet.</p>
-            </div>
-          )}
+                </div>
+              )}
           {flatHistoryList.length === 0 && chatSessions.length > 0 && (
             <p className="text-xs text-center py-4 px-3" style={{ color: 'var(--wo-text-muted)' }}>
               No sessions match &quot;{historySearch}&quot;
@@ -616,8 +616,8 @@ export default function ChatPage() {
             </button>
           )}
         </div>
-      </div>
-      )}
+                </div>
+              )}
 
       {historyPanelCollapsed && (
         <button
@@ -643,7 +643,7 @@ export default function ChatPage() {
             onClick={() => router.push('/home')}>Home</span>
           <ChevronRight className="w-3 h-3" style={{ color: 'var(--wo-text-muted)' }} />
           <span style={{ color: 'var(--wo-text)' }}>Chat with Vidya</span>
-        </div>
+            </div>
         {hasMessages && (
           <button
             onClick={() => setShowClearConfirm(true)}
@@ -766,15 +766,15 @@ export default function ChatPage() {
             <div className="flex items-center justify-between pt-2 mt-1"
               style={{ borderTop: '1px solid var(--wo-border)' }}>
               <div className="flex flex-wrap items-center gap-1.5">
-                <input
+          <input
                   ref={fileInputRef}
                   type="file"
                   accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json"
                   multiple
                   className="hidden"
                   onChange={handleAttachFiles}
-                />
-                <button
+          />
+          <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={loading}
@@ -818,12 +818,12 @@ export default function ChatPage() {
               )}
               <button
                 onClick={() => sendMessage(input)}
-                disabled={!input.trim() || loading}
+            disabled={!input.trim() || loading}
                 className="wo-btn wo-btn-primary p-2 rounded-xl disabled:opacity-40"
                 title="Send (Enter)"
-              >
+          >
                 <Send className="w-4 h-4" />
-              </button>
+          </button>
             </div>
           </div>
           {micError && (

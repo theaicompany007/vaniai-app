@@ -39,7 +39,7 @@ const RESEARCH_TEMPLATES: { id: string; title: string; prompt: string; accent: s
   {
     id: '1',
     title: 'Company Deep Dive',
-    prompt: 'Perform a deep dive research on [company]. Cover: tech stack and key technologies, leadership team and org structure, recent news and initiatives, buying signals and budget indicators, pain points and recommended sales entry points.',
+    prompt: 'Perform a deep dive research on [company]. Cover: key initiatives and capabilities, leadership team and org structure, recent news and initiatives, buying signals and budget indicators, pain points and recommended sales entry points.',
     accent: 'violet',
     Icon: Building2,
   },

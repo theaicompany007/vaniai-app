@@ -8,26 +8,27 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { agentLoop, searchWeb, type AgentTool } from '@/lib/agents';
 import { checkUsageLimit } from '@/lib/usage';
 
-const SYSTEM_PROMPT = `You are Vivek, a deep research analyst agent for B2B IT sales teams.
+const SYSTEM_PROMPT = `You are Vivek, a deep research analyst agent for B2B sales teams.
 You perform comprehensive company and market research to help sales teams understand their target accounts.
+
+Use the OUR COMPANY CONTEXT block below for: our services, target industries, target personas (decision-makers we sell to), and geography. Tailor your research and recommendations to fit our offerings.
 
 Your research framework:
 1. Company Overview — size, industry, revenue, leadership team
-2. Technology Stack — current IT infrastructure, tools, cloud providers
-3. Digital Initiatives — ongoing transformation programs, AI/GenAI adoption
-4. Pain Points — operational challenges, recent news about struggles
-5. Buying Signals — funding, expansion, leadership change, regulatory pressure
-6. Our Service Fit — which of our services (AI/GenAI, Cloud, ERP, Digital Transformation, Data Analytics) are most relevant and why
+2. Key Initiatives & Capabilities — main projects, investments, or capabilities (technology, operations, or other areas relevant to our services)
+3. Recent News & Developments — recent announcements, partnerships, or changes
+4. Pain Points — operational or business challenges, recent news about struggles
+5. Buying Signals — funding, expansion, leadership change, regulatory pressure, or other triggers relevant to our services
+6. Our Service Fit — which of OUR SERVICES (from the context) are most relevant to this account and why
 7. Key Decision Makers & Entry Points — see rules below
 
 ENTRY POINTS RULES (strictly follow):
 - You MUST list a minimum of 3 decision makers. Aim for 5.
-- Include the CEO/MD, CTO/CDO/CIO, Head of Digital/IT, CMO, and any VP of Technology or Strategy.
+- Use the TARGET PERSONAS from our context (the roles we sell to). Include the most senior relevant decision makers.
 - Search specifically by name — do not just list generic titles.
 - For each person, use EXACTLY this format on its own line:
   **Full Name (Job Title)**: One sentence on why they are the right contact and the conversation angle.
 - After listing contacts, search for their LinkedIn profile URLs. If found, add: LinkedIn: https://linkedin.com/in/...
-- Always include the most senior technology or digital decision maker, even if they are less publicly known than the CEO.
 
 Format your research as a structured markdown report with clear section headers (##).
 Be specific, cite sources, and focus on actionable insights for the sales team.
@@ -72,8 +73,9 @@ const VIVEK_TOOLS: AgentTool[] = [
   },
 ];
 
-/** Build an org-context block to inject into system prompts. Includes profile + monitoring rules so the LLM has everything. */
-async function buildOrgContext(orgId: string): Promise<string> {
+/** Build org-context block and search suffix for Vivek. */
+async function buildOrgContext(orgId: string): Promise<{ context: string; searchSuffix: string }> {
+  const empty = { context: '', searchSuffix: 'India' };
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin
@@ -81,7 +83,7 @@ async function buildOrgContext(orgId: string): Promise<string> {
       .select('name, profile, org_settings')
       .eq('id', orgId)
       .single();
-    if (!data) return '';
+    if (!data) return empty;
     const p = (data.profile ?? {}) as Record<string, unknown>;
     const s = ((data as Record<string, unknown>).org_settings ?? {}) as Record<string, unknown>;
     const monitoring = (s.monitoring ?? {}) as Record<string, unknown>;
@@ -95,8 +97,9 @@ async function buildOrgContext(orgId: string): Promise<string> {
     const geography: string[] = Array.isArray(p.target_geography) ? p.target_geography as string[] : [];
     const segment: string[] = Array.isArray(p.target_segment) ? p.target_segment as string[] : [];
     const salesTriggers = (p.sales_triggers as { category: string; description: string }[] | undefined) ?? [];
+    const targetIndustry: string[] = Array.isArray(monitoring.industries) ? monitoring.industries as string[]
+      : Array.isArray(p.target_industry) ? p.target_industry as string[] : [];
 
-    // Company Profile (ICP) + Monitoring Rules — prefer monitoring when set
     const personas: string[] = Array.isArray(monitoring.personas) ? monitoring.personas as string[]
       : Array.isArray(p.target_personas) ? p.target_personas as string[] : [];
     const industries: string[] = Array.isArray(monitoring.industries) ? monitoring.industries as string[]
@@ -118,9 +121,14 @@ async function buildOrgContext(orgId: string): Promise<string> {
     if (signalTypes.length) lines.push(`- Signal types we care about: ${signalTypes.join(', ')}`);
     if (clientNames.length) lines.push(`- Notable clients: ${clientNames.join(', ')}`);
     if (salesTriggers.length) lines.push(`- Sales triggers: ${salesTriggers.map(t => `${t.category} — ${t.description}`).join('; ')}`);
-    return lines.length > 1 ? lines.join('\n') : '';
+
+    const searchSuffix = [...geography.slice(0, 1), ...targetIndustry.slice(0, 1)].filter(Boolean).join(' ') || 'India';
+    return {
+      context: lines.length > 1 ? lines.join('\n') : '',
+      searchSuffix,
+    };
   } catch {
-    return '';
+    return empty;
   }
 }
 
@@ -150,8 +158,8 @@ export async function POST(req: Request) {
     ? `Research ${company} thoroughly. ${query}`
     : query;
 
-  // Load org profile and build a context-aware system prompt
-  const orgContext = await buildOrgContext(ctx.orgId);
+  // Load org profile and build context-aware system prompt + search suffix
+  const { context: orgContext, searchSuffix } = await buildOrgContext(ctx.orgId);
   const dynamicSystem = orgContext
     ? `${SYSTEM_PROMPT}\n\n${orgContext}`
     : SYSTEM_PROMPT;
@@ -170,10 +178,9 @@ export async function POST(req: Request) {
       executeTool: async (name, input) => {
         if (name === 'search_company') {
           const aspect = input.aspect ?? '';
-          // For leadership searches, include decision-maker-specific terms
           const q = aspect === 'leadership'
-            ? `${input.name} CEO CTO CDO CIO MD "head of technology" "head of digital" leadership team 2024 2025`
-            : `${input.name} company ${aspect} India enterprise technology 2025`;
+            ? `${input.name} CEO CTO CDO CIO MD leadership team 2024 2025`
+            : `${input.name} company ${aspect} ${searchSuffix} 2025`;
           return await searchWeb(q);
         }
 

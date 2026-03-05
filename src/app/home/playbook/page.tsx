@@ -57,7 +57,7 @@ const STEP_DEFS: StepDef[] = [
     id: 'research',
     number: 3,
     title: 'Deep Research',
-    description: 'Run 3 targeted Vivek research queries — leadership, tech stack, and pitch angle.',
+    description: 'Run targeted Vivek research — leadership, key initiatives, and pitch angle.',
     icon: FlaskConical,
     href: (c) => `/research?playbook=${encodeURIComponent(c)}`,
     actionLabel: 'Open Research →',
@@ -78,7 +78,7 @@ const STEP_DEFS: StepDef[] = [
     id: 'signals',
     number: 4,
     title: 'Find Signals',
-    description: 'Vigil scans for buying triggers — leadership changes, funding, expansion, tech investments.',
+    description: 'Vigil scans for buying triggers relevant to your offerings — leadership, funding, expansion, and other signals you monitor.',
     icon: Flame,
     href: (c) => `/home/signals?company=${encodeURIComponent(c)}`,
     actionLabel: 'Find Signals →',
@@ -247,9 +247,9 @@ function HorizontalStepper({
 
 function getResearchQueries(company: string) {
   return [
-    `Deep dive into ${company} — digital transformation initiatives, technology stack, and AI/automation investments`,
-    `Who is the best person to contact at ${company} for AI sales intelligence? Best entry angle?`,
-    `How to pitch our AI sales intelligence platform to ${company} — key pain points and ROI angles`,
+    `Deep dive into ${company} — key initiatives, leadership, and best entry angle for our offerings`,
+    `Who to contact at ${company} and best entry angle?`,
+    `How to pitch our solutions to ${company} — pain points and ROI angles`,
   ];
 }
 

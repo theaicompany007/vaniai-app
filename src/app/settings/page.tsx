@@ -7,16 +7,12 @@ import {
   Globe, Plus, X, Sparkles, Lock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { INDUSTRY_OPTIONS, ALL_SIGNAL_TYPES } from '@/lib/constants';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const GEOGRAPHY_OPTIONS = [
   'India', 'USA', 'UAE', 'Singapore', 'UK', 'Australia',
   'Canada', 'Germany', 'Southeast Asia', 'Europe', 'Middle East',
-];
-const INDUSTRY_OPTIONS = [
-  'FMCG', 'Banking', 'Healthcare', 'Retail', 'Hospitality', 'Manufacturing',
-  'Technology', 'E-commerce', 'Automotive', 'Telecom', 'Education',
-  'Insurance', 'Pharma', 'Logistics', 'Media',
 ];
 const PERSONA_OPTIONS = [
   'CIO', 'CTO', 'CEO', 'CMO', 'CDO', 'MD', 'CFO', 'CISO',
@@ -1646,16 +1642,7 @@ function UserSettings() {
 }
 
 // ─── MonitoringSettings ────────────────────────────────────────────────────────
-const ALL_SIGNAL_TYPES = [
-  'Funding', 'Expansion', 'Leadership', 'Tech Adoption',
-  'M&A', 'Regulatory', 'Challenges', 'Business Initiatives',
-];
-const ALL_INDUSTRIES = [
-  'FMCG', 'Banking', 'Healthcare', 'Retail', 'Manufacturing',
-  'Technology', 'E-commerce', 'Automotive', 'Telecom', 'Education',
-  'Insurance', 'Pharma', 'Logistics', 'Media', 'Financial Services',
-  'Real Estate', 'Energy', 'Government',
-];
+const ALL_INDUSTRIES = INDUSTRY_OPTIONS;
 const ALL_PERSONAS = [
   'CIO', 'CTO', 'CEO', 'CMO', 'CDO', 'MD', 'CFO', 'CISO',
   'VP Technology', 'Head of IT', 'Head of Digital', 'Director of Operations',

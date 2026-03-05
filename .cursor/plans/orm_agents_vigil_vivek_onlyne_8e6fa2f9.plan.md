@@ -1,13 +1,25 @@
 ---
-name: ORM agents Vigil Vivek Onlyne
-overview: Use the scanned Onlynereputation.com website to define services, industries, personas, and signals; then adapt Vigil and Vivek (profile/domain-aware) so an org registered as Onlynereputation.com gets ORM-specific prompts, signal tags, and research framework, with optional profile/monitoring generation improvements.
+name: Profile-driven agents and UI
+overview: Make Vigil and Vivek profile-driven and domain-agnostic so the app works for any business (energy/utility, telecom, conglomerates, ORM). Update UI/UX and inputs—Company tab, Monitoring Rules, Playbook (start modal, step copy, research suggestions), Research page, and Signals—so labels, options, and suggested queries align with the org profile and work across industries.
 todos: []
 isProject: false
 ---
 
-# Plan: Add ORM Support for Onlynereputation.com (Train Vigil & Vivek)
+# Plan: Profile-Driven Agents + UI/UX and Input Changes
 
-## Part 1 — Website scan summary (Onlynereputation.com)
+## Part 1 — Goal and scope
+
+**Goal:** One codebase, one set of agents (Vigil, Vivek). Behaviour is driven by the **org profile** (Company Profile + Monitoring Rules). No hardcoded industry or domain. Works for: **Energy / utility / power** (e.g. Schneider Electric), **Telecom** (e.g. Airtel, Jio), **Conglomerates / multi-industry** (e.g. Reliance: Power, Oil & Gas, Telecom, Data Centers, E-commerce), **ORM** (e.g. Onlynereputation.com), and any other B2B company that sets profile and monitoring.
+
+**Scope:** Backend (Vigil, Vivek, generate-profile, generate-monitoring) + **UI/UX and inputs** (Company tab, Monitoring, Playbook start modal and step copy, Research templates/placeholders, Signals filters).
+
+---
+
+## Part 1a — Reference: Onlynereputation.com (example profile)
+
+*(Kept for reference; agents will use whatever profile the org has, not only ORM.)*
+
+From [onlynereputation.com](https://onlynereputation.com): Services (Develop Positive Reputation, Remove Negative Comment, Reputation Monitoring, etc.); target industries (Hospitality, Healthcare, Real Estate, Wellness, Education, Ecommerce, etc.); personas (CEO, Marketing Head, Communications Manager); signals (Reputation Crisis, Negative Reviews, Bad Publicity, Leadership, Expansion, Scandal). Geography: India, USA, UK, Australia.
 
 From [onlynereputation.com](https://onlynereputation.com) and [industries page](https://onlynereputation.com/industries):
 
@@ -61,9 +73,9 @@ From [onlynereputation.com](https://onlynereputation.com) and [industries page](
 
 ---
 
-## Part 2 — Recommended approach: train Vigil and Vivek (profile-aware)
+## Part 2 — How behaviour is driven (no UI change to flow)
 
-Use the **existing** Vigil and Vivek agents and make them **domain-aware** using the org profile. When the org looks like an ORM business (e.g. industry/description/services mention “reputation”, “ORM”, “reviews”, “negative content”), switch to ORM-specific prompts, signal tags, and research framework. No new agent is required unless you later want a dedicated “Onlyne” agent.
+Use the **existing** Vigil and Vivek agents; behaviour is driven only by the org profile (no domain detection). When the org looks like an ORM business (e.g. industry/description/services mention “reputation”, “ORM”, “reviews”, “negative content”), switch to ORM-specific prompts, signal tags, and research framework. No new agent is required unless you later want a dedicated “Onlyne” agent.
 
 ```mermaid
 flowchart LR
@@ -94,11 +106,44 @@ flowchart LR
 
 
 
+- **Company Profile** (Settings): services, target_industry, target_personas, target_geography drive Vigil/Vivek prompts and search. **Monitoring:** signal_types, keywords. Vigil uses **profile.services** for save_signal; Vivek uses **profile.target_personas** for decision makers. Search uses **target_geography** and **target_industry**. Extended signal tags and industry options in shared constants.
+
+---
+
+## Part 2a — UI/UX and input changes
+
+### Company tab (Settings)
+
+- **Current:** Multi-URL, Generate (scrapes and fills profile), Save. **Change:** Optional copy that profile drives Vigil and Vivek. Generate-profile API prompt made domain-agnostic so it works for energy, telecom, ORM, conglomerates.
+
+### Monitoring Rules tab (Settings)
+
+- **Industries:** Extend list to include **Energy**, **Utilities**, **Oil & Gas**, **Telecom**, **Hospitality**, **Wellness**, **Real Estate** (same list as Company target industry). Single source: e.g. `INDUSTRY_OPTIONS` in settings (Hospitality already added).
+- **Signal types:** Extend `ALL_SIGNAL_TYPES` with **Reputation Crisis**, **Negative Reviews**, **Bad Publicity**, **Scandal**. Generate-monitoring prompt uses extended industries and signal types.
+
+### Playbook — Start modal
+
+- **Industry list:** Use same industry options as Settings (e.g. import shared `INDUSTRY_OPTIONS`) so Playbook "Target industry" includes Energy, Telecom, Hospitality, etc. File: [src/components/PlaybookStartModal.tsx](src/components/PlaybookStartModal.tsx).
+
+### Playbook — Step copy and suggested queries
+
+- **Step 3 (Deep Research):** Change description from "Run 3 targeted Vivek research queries — leadership, tech stack, and pitch angle" to generic: "Run targeted Vivek research — leadership, key initiatives, and pitch angle." File: [src/app/home/playbook/page.tsx](src/app/home/playbook/page.tsx) — `STEP_DEFS`.
+- **Step 4 (Find Signals):** Change from "Vigil scans for buying triggers — leadership changes, funding, expansion, tech investments" to: "Vigil scans for buying triggers relevant to your offerings — leadership, funding, expansion, and other signals you monitor."
+- **Suggested research queries:** Today `getResearchQueries(company)` returns hardcoded "digital transformation, technology stack, AI/automation" and "AI sales intelligence". Change to generic: e.g. "Deep dive into [company] — key initiatives, leadership, and best entry angle for our offerings"; "Who to contact at [company] and best entry angle?"; "How to pitch our solutions to [company] — pain points and ROI angles."
+
+### Research page
+
+- **Templates:** Optionally soften "Company Deep Dive" from "tech stack and key technologies" to "key initiatives and capabilities". Other templates already generic. File: [src/app/research/page.tsx](src/app/research/page.tsx).
+
+### Signals page
+
+- **Filter tags:** Use same extended signal list as Monitoring (or `ALL_SIGNAL_TYPES`) so filter chips include new tags (Reputation Crisis, Bad Publicity, etc.). File: [src/app/home/signals/page.tsx](src/app/home/signals/page.tsx) — `SIGNAL_TAGS` or derive from shared constant.
+
 ---
 
 ## Part 3 — Implementation tasks
 
-### 3.1 Domain detection helper
+### 3.1 Remove domain detection; make agents profile-driven
 
 - **Where:** New shared helper (e.g. `src/lib/org-domain.ts`) or inside each agent file.
 - **Logic:** Treat org as ORM if any of:
@@ -107,11 +152,11 @@ flowchart LR
   - `profile.services` (array) has any item matching those keywords.
 - **Export:** `isReputationManagementOrg(profile: Record<string, unknown>): boolean`.
 
-### 3.2 Vigil — ORM mode
+### 3.2 Vigil — profile-driven (no ORM/IT branch)
 
 - **File:** [src/app/api/agents/vigil/route.ts](src/app/api/agents/vigil/route.ts)
 - **Changes:**
-  1. After `buildOrgContext(ctx.orgId)`, call the domain helper. If ORM:
+  1. Single generic system prompt driven by buildOrgContext. No domain helper. If ORM:
     - Build an **ORM-specific system prompt block** that replaces or overrides the IT-focused part:
       - **Mission:** Find signals that indicate a company/person may need reputation management (negative reviews, bad publicity, reputation crisis, scandal, expansion, new marketing/comms leadership).
       - **Signal tags:** `Reputation Crisis`, `Negative Reviews`, `Bad Publicity`, `Leadership`, `Expansion`, `Regulatory`, `Scandal` (and keep `Funding`, `M&A` if useful).
