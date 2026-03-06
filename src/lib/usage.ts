@@ -9,6 +9,24 @@ const PLAN_LIMITS: Record<string, Record<UsageFeature, number>> = {
   trial:      { signals: 20,  agent_runs: 10,  documents: 5   },
 };
 
+/** Check if org matches CREATOR_ORG_SLUG (unlimited usage). Used by Settings to show status. */
+export function isCreatorOrg(org: { slug?: string; name?: string; profile?: unknown }): boolean {
+  const identifiers = (process.env['CREATOR_ORG_SLUG'] ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (identifiers.length === 0) return false;
+  const orgName = (org?.name ?? '').toLowerCase();
+  const orgNameNorm = orgName.replace(/\s+/g, '').replace(/-/g, '');
+  const orgSlugBase = (org?.slug ?? '').replace(/-?\d{10,}$/, '').toLowerCase().replace(/-/g, '');
+  const profile = (org?.profile ?? {}) as { website_url?: string };
+  const website = ((profile.website_url ?? '') + '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  return identifiers.some((id) => {
+    const idNorm = id.replace(/\s+/g, '').replace(/-/g, '');
+    return orgName.includes(id) || orgNameNorm.includes(idNorm) || orgSlugBase.includes(idNorm) || website.includes(id);
+  });
+}
+
 export async function checkUsageLimit(
   orgId: string,
   feature: UsageFeature
@@ -26,24 +44,7 @@ export async function checkUsageLimit(
     .eq('id', orgId)
     .single();
 
-  // Creator orgs (e.g. The AI Company, onlynereputation.com) always have unlimited usage.
-  // Match by: org name, slug (base part before timestamp), or website domain.
-  const identifiers = (process.env['CREATOR_ORG_SLUG'] ?? '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  if (identifiers.length > 0) {
-    const orgName = (org?.name ?? '').toLowerCase();
-    const orgNameNorm = orgName.replace(/\s+/g, '').replace(/-/g, '');
-    const orgSlugBase = (org?.slug ?? '').replace(/-?\d{10,}$/, '').toLowerCase().replace(/-/g, '');
-    const profile = (org?.profile as { website_url?: string } | null) ?? {};
-    const website = ((profile.website_url ?? '') + '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    const isCreator = identifiers.some((id) => {
-      const idNorm = id.replace(/\s+/g, '').replace(/-/g, '');
-      return orgName.includes(id) || orgNameNorm.includes(idNorm) || orgSlugBase.includes(idNorm) || website.includes(id);
-    });
-    if (isCreator) return { allowed: true, remaining: -1, limit: -1 };
-  }
+  if (isCreatorOrg(org ?? {})) return { allowed: true, remaining: -1, limit: -1 };
 
   const tier = org?.subscription_tier ?? 'starter';
   const limits = PLAN_LIMITS[tier] ?? PLAN_LIMITS.starter;

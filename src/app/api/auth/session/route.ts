@@ -20,11 +20,13 @@ export async function GET() {
 
   const meta = (authUser?.user_metadata ?? {}) as Record<string, string>;
   const role = membership?.role as string | undefined;
+  const demoMode = process.env['BYPASS_USAGE_LIMITS'] === 'true';
   return NextResponse.json({
     userId: user.userId,
     email: user.email,
     orgId: membership?.org_id ?? null,
     role: role ?? null,
     avatar_url: meta.avatar_url ?? null,
+    demoMode,
   });
 }

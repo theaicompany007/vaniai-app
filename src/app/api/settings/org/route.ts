@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-helpers';
 import { getSupabaseServer } from '@/lib/supabase';
+import { isCreatorOrg } from '@/lib/usage';
 
-/** GET /api/settings/org — return org name + profile jsonb */
+/** GET /api/settings/org — return org name, slug, profile, and unlimited status */
 export async function GET() {
   const { ctx, response } = await requireAuth();
   if (!ctx) return response!;
@@ -10,7 +11,7 @@ export async function GET() {
   const supabase = await getSupabaseServer();
   const { data, error } = await supabase
     .from('organizations')
-    .select('id, name, profile, org_settings')
+    .select('id, name, slug, profile, org_settings')
     .eq('id', ctx.orgId)
     .single();
 
@@ -19,19 +20,37 @@ export async function GET() {
     if (error.message.includes('column') || error.message.includes('does not exist')) {
       const { data: basic } = await supabase
         .from('organizations')
-        .select('id, name')
+        .select('id, name, slug')
         .eq('id', ctx.orgId)
         .single();
-      return NextResponse.json({ id: basic?.id, name: basic?.name ?? '', profile: {}, org_settings: {} });
+      const orgData = basic as { id?: string; name?: string; slug?: string } | null;
+      const unlimited = orgData ? isCreatorOrg(orgData) : false;
+      const demoMode = process.env['BYPASS_USAGE_LIMITS'] === 'true';
+      return NextResponse.json({
+        id: orgData?.id,
+        name: orgData?.name ?? '',
+        slug: orgData?.slug ?? '',
+        profile: {},
+        org_settings: {},
+        unlimited,
+        demoMode,
+      });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const orgData = data as { id?: string; name?: string; slug?: string; profile?: unknown; org_settings?: unknown };
+  const unlimited = isCreatorOrg(orgData);
+  const demoMode = process.env['BYPASS_USAGE_LIMITS'] === 'true';
+
   return NextResponse.json({
-    id:           data.id,
-    name:         data.name ?? '',
-    profile:      (data as Record<string, unknown>).profile ?? {},
-    org_settings: (data as Record<string, unknown>).org_settings ?? {},
+    id:           orgData.id,
+    name:         orgData.name ?? '',
+    slug:         orgData.slug ?? '',
+    profile:      orgData.profile ?? {},
+    org_settings: orgData.org_settings ?? {},
+    unlimited,
+    demoMode,
   });
 }
 

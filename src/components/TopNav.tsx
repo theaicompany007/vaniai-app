@@ -100,6 +100,7 @@ export default function TopNav() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
   const hidePlaybookChip = () => {
@@ -121,6 +122,7 @@ export default function TopNav() {
           setUserRole(roleMap[data.role as string] ?? (data.role as string));
         }
         if (data?.avatar_url) setUserAvatarUrl(data.avatar_url);
+        if (data?.demoMode) setDemoMode(true);
       })
       .catch(() => {});
   }, []);
@@ -274,6 +276,15 @@ export default function TopNav() {
                   }}
                 >
                   {userRole}
+                </span>
+              )}
+              {demoMode && (
+                <span
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  style={{ background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}
+                  title="BYPASS_USAGE_LIMITS=true — demo/test mode"
+                >
+                  Demo
                 </span>
               )}
             </div>

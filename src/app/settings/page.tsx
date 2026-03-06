@@ -640,6 +640,9 @@ function ChangePasswordBlock() {
 function CompanySettings() {
   const [tab, setTab] = useState<'about' | 'icp' | 'triggers'>('about');
   const [orgName, setOrgName] = useState('');
+  const [orgSlug, setOrgSlug] = useState('');
+  const [unlimited, setUnlimited] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
   const [profile, setProfile] = useState<OrgProfile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -664,6 +667,9 @@ function CompanySettings() {
       .then(data => {
         if (data) {
           setOrgName(data.name ?? '');
+          setOrgSlug(data.slug ?? '');
+          setUnlimited(!!data.unlimited);
+          setDemoMode(!!data.demoMode);
           const p = data.profile ?? {};
           // Migrate legacy website_url into website_urls array
           const urls: string[] = Array.isArray(p.website_urls) ? p.website_urls : [];
@@ -813,9 +819,26 @@ function CompanySettings() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-lg font-bold" style={{ color: 'var(--wo-text)' }}>Company Profile</h2>
-        <span className="text-sm font-medium" style={{ color: 'var(--wo-primary)' }}>{orgName}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium" style={{ color: 'var(--wo-primary)' }}>{orgName}</span>
+          {orgSlug && (
+            <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--wo-surface-2)', color: 'var(--wo-text-muted)' }} title="Organization slug (used for unlimited usage matching)">
+              {orgSlug}
+            </span>
+          )}
+          {unlimited && (
+            <span className="text-xs px-2 py-0.5 rounded font-medium" style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }} title="This org matches CREATOR_ORG_SLUG">
+              Unlimited
+            </span>
+          )}
+          {demoMode && (
+            <span className="text-xs px-2 py-0.5 rounded font-medium" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }} title="BYPASS_USAGE_LIMITS=true — all orgs have unlimited usage">
+              Demo / Test mode
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Sub-tabs */}
