@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
 import { usePlaybook } from '@/context/PlaybookContext';
+import { INDUSTRY_OPTIONS, ALL_SIGNAL_TYPES } from '@/lib/constants';
 
 // ─── Research prompt cards (SPARK-style: icon, title, detailed description) ───
 const RESEARCH_TEMPLATES: { id: string; title: string; prompt: string; accent: string; Icon: LucideIcon }[] = [
@@ -217,23 +218,57 @@ function PromptContextForm({
       </div>
       <div>
         <label className={labelClass} style={{ color: 'var(--wo-text-muted)' }}>Industry</label>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {INDUSTRY_OPTIONS.map((ind) => (
+            <button
+              key={ind}
+              type="button"
+              onClick={() => onChange({ ...context, industry: context.industry === ind ? '' : ind })}
+              className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+              style={{
+                background: context.industry === ind ? 'rgba(0,217,255,0.15)' : 'rgba(255,255,255,0.04)',
+                border: context.industry === ind ? '1px solid rgba(0,217,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                color: context.industry === ind ? 'var(--wo-primary)' : 'var(--wo-text-muted)',
+              }}
+            >
+              {ind}
+            </button>
+          ))}
+        </div>
         <input
           type="text"
-          placeholder="e.g. Technology, Paints"
-          value={context.industry}
+          placeholder="Or type custom industry…"
+          value={INDUSTRY_OPTIONS.includes(context.industry) ? '' : context.industry}
           onChange={e => onChange({ ...context, industry: e.target.value })}
-          className={inputClass}
+          className={inputClass + ' mt-2'}
           style={{ color: 'var(--wo-text)' }}
         />
       </div>
       <div>
         <label className={labelClass} style={{ color: 'var(--wo-text-muted)' }}>Describe signal (optional)</label>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {ALL_SIGNAL_TYPES.map((sig) => (
+            <button
+              key={sig}
+              type="button"
+              onClick={() => onChange({ ...context, describeSignal: context.describeSignal === sig ? '' : sig })}
+              className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+              style={{
+                background: context.describeSignal === sig ? 'rgba(0,217,255,0.15)' : 'rgba(255,255,255,0.04)',
+                border: context.describeSignal === sig ? '1px solid rgba(0,217,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                color: context.describeSignal === sig ? 'var(--wo-primary)' : 'var(--wo-text-muted)',
+              }}
+            >
+              {sig}
+            </button>
+          ))}
+        </div>
         <input
           type="text"
-          placeholder="e.g. New CFO, expansion news"
-          value={context.describeSignal}
+          placeholder="Or type custom signal (e.g. New CFO, expansion news)…"
+          value={ALL_SIGNAL_TYPES.includes(context.describeSignal) ? '' : context.describeSignal}
           onChange={e => onChange({ ...context, describeSignal: e.target.value })}
-          className={inputClass}
+          className={inputClass + ' mt-2'}
           style={{ color: 'var(--wo-text)' }}
         />
       </div>
@@ -1768,15 +1803,15 @@ function ResearchPageInner() {
                       <Pin className={`w-4 h-4 ${promptsPanelPinned ? '' : 'opacity-60'}`} strokeWidth={2} style={{ transform: promptsPanelPinned ? 'rotate(-45deg)' : 'none' }} />
                     </button>
                   </div>
-                  <div className="flex-shrink-0 mb-3">
-                    <PromptContextForm
-                      compact
-                      context={promptContext}
-                      onChange={setPromptContext}
-                      playbookHint={playbook ? { company: playbook.company, industry: playbook.industry } : null}
-                    />
-                  </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible py-1 pr-1 hide-scrollbar space-y-2">
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible py-1 pr-1 hide-scrollbar">
+                    <div className="space-y-3">
+                      <PromptContextForm
+                        compact
+                        context={promptContext}
+                        onChange={setPromptContext}
+                        playbookHint={playbook ? { company: playbook.company, industry: playbook.industry } : null}
+                      />
+                      <div className="space-y-2">
                     {RESEARCH_TEMPLATES.map((tmpl, index) => {
                       const accentStyles: Record<string, { iconBg: string; iconColor: string; cardBorder: string; cardBg: string; cardHover: string }> = {
                         violet:  { iconBg: 'rgba(139,92,246,0.2)', iconColor: '#a78bfa', cardBorder: 'rgba(139,92,246,0.3)', cardBg: 'rgba(139,92,246,0.06)', cardHover: 'rgba(139,92,246,0.12)' },
@@ -1836,6 +1871,8 @@ function ResearchPageInner() {
                         </button>
                       );
                     })}
+                      </div>
+                    </div>
                   </div>
                 </aside>
               )}

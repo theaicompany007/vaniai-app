@@ -244,7 +244,7 @@ export default function ContactsPage() {
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div>

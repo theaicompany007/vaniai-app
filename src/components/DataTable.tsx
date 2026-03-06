@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Search, ChevronLeft, ChevronRight, Grid3X3, MoreHorizontal } from 'lucide-react';
 
 interface Column<T> {
   key: string;
   label: string;
   render?: (item: T) => React.ReactNode;
+  sortable?: boolean;
+  sortKey?: string; // Optional: use different key for sorting (e.g. 'opp_count' for display key)
 }
 
 interface DataTableProps<T> {
@@ -24,6 +26,21 @@ export default function DataTable<T extends { id: string }>({
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [openSortDropdown, setOpenSortDropdown] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenSortDropdown(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const perPage = 10;
 
   const filtered = data.filter((item) =>
@@ -33,8 +50,34 @@ export default function DataTable<T extends { id: string }>({
     })
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
-  const pageData = filtered.slice((page - 1) * perPage, page * perPage);
+  const sorted = [...filtered];
+  if (sortColumn) {
+    const col = columns.find((c) => c.key === sortColumn);
+    const key = col?.sortKey ?? col?.key ?? sortColumn;
+    sorted.sort((a, b) => {
+      const va = (a as Record<string, unknown>)[key];
+      const vb = (b as Record<string, unknown>)[key];
+      const isStr = typeof va === 'string' || typeof vb === 'string';
+      const aVal = isStr ? String(va ?? '').toLowerCase() : (Number(va) ?? 0);
+      const bVal = isStr ? String(vb ?? '').toLowerCase() : (Number(vb) ?? 0);
+      if (isStr) {
+        const cmp = String(aVal).localeCompare(String(bVal));
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
+      const cmp = (aVal as number) < (bVal as number) ? -1 : (aVal as number) > (bVal as number) ? 1 : 0;
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / perPage));
+  const pageData = sorted.slice((page - 1) * perPage, page * perPage);
+
+  function handleSort(colKey: string, direction: 'asc' | 'desc') {
+    setSortColumn(colKey);
+    setSortDirection(direction);
+    setOpenSortDropdown(null);
+    setPage(1);
+  }
 
   return (
     <div>
@@ -61,7 +104,50 @@ export default function DataTable<T extends { id: string }>({
           <thead>
             <tr>
               {columns.map((col) => (
-                <th key={col.key}>{col.label}</th>
+                <th key={col.key} className="relative">
+                  {col.sortable ? (
+                    <div ref={col.key === openSortDropdown ? dropdownRef : undefined} className="inline-flex items-center gap-1.5">
+                      <Grid3X3 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--wo-text-muted)' }} />
+                      <span>{col.label}</span>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setOpenSortDropdown((prev) => (prev === col.key ? null : col.key))}
+                          className="p-0.5 rounded transition-colors hover:bg-white/10"
+                          style={{ color: sortColumn === col.key ? 'var(--wo-primary)' : 'var(--wo-text-muted)' }}
+                          title="Sort options"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                        {openSortDropdown === col.key && (
+                          <div
+                            className="absolute left-0 top-full mt-0.5 py-1 min-w-[140px] rounded-lg shadow-lg z-10"
+                            style={{ background: 'var(--wo-surface-2)', border: '1px solid rgba(255,255,255,0.08)' }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleSort(col.key, 'asc')}
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors"
+                              style={{ color: 'var(--wo-text)' }}
+                            >
+                              Sort Ascending
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSort(col.key, 'desc')}
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors"
+                              style={{ color: 'var(--wo-text)' }}
+                            >
+                              Sort Descending
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    col.label
+                  )}
+                </th>
               ))}
             </tr>
           </thead>

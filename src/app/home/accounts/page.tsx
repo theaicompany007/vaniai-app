@@ -14,6 +14,8 @@ interface Account {
   description?: string;
   contacts_count?: number;
   opp_count?: number;
+  signal_count?: number;
+  insights?: string | null;
   is_watchlisted?: boolean;
   created_at: string;
 }
@@ -147,6 +149,7 @@ function AccountsPageInner() {
     {
       key: 'name',
       label: 'Account Name',
+      sortable: true,
       render: (item: Account) => (
         <span className="font-medium" style={{ color: 'var(--wo-text)' }}>{item.name}</span>
       ),
@@ -163,14 +166,34 @@ function AccountsPageInner() {
     },
     {
       key: 'opp_count',
-      label: 'Opportunities',
+      label: 'Opportunity Count',
+      sortable: true,
       render: (item: Account) => (
         <span className="text-sm font-medium" style={{ color: 'var(--wo-text)' }}>
           {item.opp_count ?? 0}
         </span>
       ),
     },
-    { key: 'location', label: 'Location' },
+    {
+      key: 'signal_count',
+      label: 'Signal Count',
+      sortable: true,
+      render: (item: Account) => (
+        <span className="text-sm font-medium" style={{ color: 'var(--wo-text)' }}>
+          {item.signal_count ?? 0}
+        </span>
+      ),
+    },
+    { key: 'location', label: 'Location / Country' },
+    {
+      key: 'insights',
+      label: 'Insights',
+      render: (item: Account) => (
+        <span className="text-sm" style={{ color: 'var(--wo-text-muted)' }}>
+          {item.insights ?? '—'}
+        </span>
+      ),
+    },
     {
       key: 'actions',
       label: '',
@@ -263,7 +286,7 @@ function AccountsPageInner() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div>

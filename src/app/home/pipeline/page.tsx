@@ -120,18 +120,18 @@ export default function PipelinePage() {
   }
 
   return (
-    <div className="p-6 h-full">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 h-full flex flex-col min-h-0 overflow-hidden">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <h1 className="text-xl font-bold" style={{ color: 'var(--wo-text)' }}>Pipeline</h1>
         {loading && (
           <span className="text-xs" style={{ color: 'var(--wo-text-muted)' }}>Loading…</span>
         )}
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex gap-4 h-[calc(100vh-180px)] overflow-x-auto pb-4">
+      {/* Kanban Board - columns fit within viewport, no horizontal scroll */}
+      <div className="flex gap-4 flex-1 min-h-0 min-w-0 overflow-hidden">
         {columns.map((col) => (
-          <div key={col.label} className="flex-shrink-0 w-72 flex flex-col">
+          <div key={col.label} className="flex-1 min-w-0 flex flex-col">
             {/* Column header */}
             <div className="flex items-center justify-between mb-3 px-1">
               <h3 className="text-sm font-semibold" style={{ color: 'var(--wo-text)' }}>
@@ -147,14 +147,15 @@ export default function PipelinePage() {
 
             {/* Cards (drop zone) */}
             <div
-              className="flex-1 flex flex-col gap-3 overflow-y-auto rounded-xl min-h-[120px] transition-colors"
-              onDragOver={(e) => handleDragOver(e, col.label)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, col)}
+              className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto rounded-xl transition-colors"
               style={{
+                minHeight: 120,
                 outline: dropTargetCol === col.label ? '2px dashed var(--wo-primary)' : undefined,
                 outlineOffset: 2,
               }}
+              onDragOver={(e) => handleDragOver(e, col.label)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, col)}
             >
               {col.items.map((opp) => (
                 <div

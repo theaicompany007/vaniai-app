@@ -362,24 +362,26 @@ export default function TopNav() {
               </button>
             </div>
 
-            {/* About the agents (what they do & why) */}
-            <div className="px-5 pt-4 pb-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--wo-primary)' }}>
-                The agents
-              </h3>
-              <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--wo-text-muted)' }}>
-                Each tab is powered by a dedicated AI agent. The header shows who&apos;s active (e.g. Vani AI agent Vivek on Research). They were built so you can research, signal, write, and coach without switching tools.
-              </p>
-              <ul className="space-y-2 text-xs" style={{ color: 'var(--wo-text-muted)' }}>
-                <li><strong style={{ color: 'var(--wo-primary)' }}>Vivek</strong> — Research. Deep-dives on any account: tech stack, pain points, entry points. So you go into calls prepared.</li>
-                <li><strong style={{ color: 'var(--wo-primary)' }}>Vidya</strong> — Chat co-pilot. Strategy, first-contact emails, next-best-action, deal coaching. Your always-on sales advisor.</li>
-                <li><strong style={{ color: 'var(--wo-primary)' }}>Vigil</strong> — Lead signals. Scans the web for funding, hiring, leadership changes at target companies. So you spot intent early.</li>
-                <li><strong style={{ color: 'var(--wo-primary)' }}>Varta</strong> — Documents. Generates pitch decks, proposals, and briefs from your KB and signals. So you send tailored content, fast.</li>
-              </ul>
-            </div>
+            {/* Scrollable content: agents + steps */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+              {/* About the agents (what they do & why) */}
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--wo-primary)' }}>
+                  The agents
+                </h3>
+                <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--wo-text-muted)' }}>
+                  Each tab is powered by a dedicated AI agent. The header shows who&apos;s active (e.g. Vani AI agent Vivek on Research). They were built so you can research, signal, write, and coach without switching tools.
+                </p>
+                <ul className="space-y-2 text-xs" style={{ color: 'var(--wo-text-muted)' }}>
+                  <li><strong style={{ color: 'var(--wo-primary)' }}>Vivek</strong> — Research. Deep-dives on any account: tech stack, pain points, entry points. So you go into calls prepared.</li>
+                  <li><strong style={{ color: 'var(--wo-primary)' }}>Vidya</strong> — Chat co-pilot. Strategy, first-contact emails, next-best-action, deal coaching. Your always-on sales advisor.</li>
+                  <li><strong style={{ color: 'var(--wo-primary)' }}>Vigil</strong> — Lead signals. Scans the web for funding, hiring, leadership changes at target companies. So you spot intent early.</li>
+                  <li><strong style={{ color: 'var(--wo-primary)' }}>Varta</strong> — Documents. Generates pitch decks, proposals, and briefs from your KB and signals. So you send tailored content, fast.</li>
+                </ul>
+              </div>
 
-            {/* Steps list */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+              {/* Steps list */}
+              <div className="flex flex-col gap-3">
               {WORKFLOW_STEPS.map(({ step, icon: Icon, title, description, href, linkLabel }) => (
                 <div key={step} className="wo-card p-4">
                   <div className="flex items-start gap-3">
@@ -417,6 +419,7 @@ export default function TopNav() {
                   </div>
                 </div>
               ))}
+              </div>
             </div>
 
             {/* Footer CTA */}

@@ -24,7 +24,7 @@ export async function GET() {
     const contactCountMap: Record<string, number> = {};
     const oppCountMap: Record<string, number> = {};
 
-    const [contactsRes, oppsRes] = await Promise.all([
+    const [contactsRes, oppsRes, signalsRes] = await Promise.all([
       supabase
         .from('contacts')
         .select('account_id')
@@ -35,6 +35,10 @@ export async function GET() {
         .select('account_id')
         .eq('org_id', ctx.orgId)
         .not('account_id', 'is', null),
+      supabase
+        .from('signals')
+        .select('company')
+        .eq('org_id', ctx.orgId),
     ]);
 
     if (!contactsRes.error && contactsRes.data) {
@@ -48,11 +52,26 @@ export async function GET() {
       }
     }
 
-    const result = accounts.map((a) => ({
-      ...a,
-      contacts_count: contactCountMap[a.id] ?? 0,
-      opp_count: oppCountMap[a.id] ?? 0,
-    }));
+    // Build signal count by company name (case-insensitive match to account name)
+    const signalCountByCompany: Record<string, number> = {};
+    if (!signalsRes.error && signalsRes.data) {
+      for (const s of signalsRes.data) {
+        const key = (s.company ?? '').trim().toLowerCase();
+        if (key) signalCountByCompany[key] = (signalCountByCompany[key] ?? 0) + 1;
+      }
+    }
+
+    const result = accounts.map((a) => {
+      const accountKey = (a.name ?? '').trim().toLowerCase();
+      const signal_count = signalCountByCompany[accountKey] ?? 0;
+      return {
+        ...a,
+        contacts_count: contactCountMap[a.id] ?? 0,
+        opp_count: oppCountMap[a.id] ?? 0,
+        signal_count,
+        insights: null as string | null, // Placeholder for future insights
+      };
+    });
 
     return NextResponse.json(result);
   } catch (err) {
