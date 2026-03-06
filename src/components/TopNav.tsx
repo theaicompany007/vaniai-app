@@ -144,7 +144,7 @@ export default function TopNav() {
     <>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <header
-        className="wo-header h-14 flex items-center justify-between pl-0 pr-4 sm:pr-6 flex-shrink-0 z-30 gap-3"
+        className="wo-header topnav-always-dark h-14 flex items-center justify-between pl-0 pr-4 sm:pr-6 flex-shrink-0 z-30 gap-3"
         style={{
           background: 'var(--wo-surface)',
           borderBottom: '1px solid var(--wo-border)',

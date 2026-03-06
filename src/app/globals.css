@@ -171,8 +171,22 @@ html.light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 /* ===== Component Classes (inside @layer so utilities can override) ===== */
 @layer components {
 
-  /* ── Header (light: subtle elevation) ── */
-  html.light-theme .wo-header {
+  /* ── Header: always dark theme (unchanged by light-theme toggle) ── */
+  .wo-header.topnav-always-dark {
+    --wo-surface: #0d0d14;
+    --wo-surface-2: #121218;
+    --wo-border: #1e1e2e;
+    --wo-text: #e2e8f0;
+    --wo-text-muted: #8892a4;
+    --wo-primary: #00d9ff;
+    --wo-primary-dark: #00b8d9;
+    --wo-cyan-glow: rgba(0, 217, 255, 0.15);
+    --wo-bg: #050509;
+    --wo-hover-row: rgba(255, 255, 255, 0.02);
+    --wo-hover-btn: rgba(255, 255, 255, 0.06);
+    box-shadow: none;
+  }
+  html.light-theme .wo-header:not(.topnav-always-dark) {
     box-shadow: var(--wo-shadow-sm);
   }
 
