@@ -9,6 +9,23 @@ const PLAN_LIMITS: Record<string, Record<UsageFeature, number>> = {
   trial:      { signals: 20,  agent_runs: 10,  documents: 5   },
 };
 
+/** Resolve org id for the creator org (matches CREATOR_ORG_SLUG). Used by flyer to load creator's signals. */
+export async function getCreatorOrgId(): Promise<string | null> {
+  const identifiers = (process.env['CREATOR_ORG_SLUG'] ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (identifiers.length === 0) return null;
+  const admin = getSupabaseAdmin();
+  const { data: orgs } = await admin
+    .from('organizations')
+    .select('id, name, slug, profile')
+    .limit(200);
+  if (!orgs?.length) return null;
+  const match = orgs.find((org) => isCreatorOrg(org));
+  return match?.id ?? null;
+}
+
 /** Check if org matches CREATOR_ORG_SLUG (unlimited usage). Used by Settings to show status. */
 export function isCreatorOrg(org: { slug?: string; name?: string; profile?: unknown }): boolean {
   const identifiers = (process.env['CREATOR_ORG_SLUG'] ?? '')
