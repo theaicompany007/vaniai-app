@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import html2canvas from 'html2canvas';
-import { Flame, Sparkles, Map, Mail, Linkedin, MessageCircle } from 'lucide-react';
+import { Flame, Sparkles, Map, Mail, Linkedin, MessageCircle, ArrowLeft } from 'lucide-react';
 import SignalCard from '@/components/SignalCard';
 import type { Signal } from '@/lib/mock-data';
 
@@ -185,6 +185,7 @@ function CaptureTargetSignals({ signals }: { signals: Signal[] }) {
 }
 
 function FlyerPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const signalsCaptureRef = useRef<HTMLDivElement>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -208,6 +209,9 @@ function FlyerPageContent() {
       `Try it free (no credit card):\n${APP_URL}`
   );
   const [toNumber, setToNumber] = useState('');
+  const [writingName, setWritingName] = useState('');
+  const [signedInUserEmail, setSignedInUserEmail] = useState<string | null>(null);
+  const [signedInUserName, setSignedInUserName] = useState<string | null>(null);
   const flyerWrapperRef = useRef<HTMLDivElement>(null);
   const [flyerScale, setFlyerScale] = useState(() => {
     if (typeof window === 'undefined') return 1;
@@ -221,6 +225,16 @@ function FlyerPageContent() {
 
   const companyParam = searchParams.get('company')?.toLowerCase().trim();
   const demoParam = searchParams.get('demo')?.toLowerCase().trim();
+
+  useEffect(() => {
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.email) setSignedInUserEmail(data.email);
+        if (data?.fullName) setSignedInUserName(data.fullName);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -394,6 +408,22 @@ function FlyerPageContent() {
         className="flyer-print-wrapper min-h-screen flex flex-col items-center p-2 sm:p-4 gap-2 sm:gap-4"
         style={{ background: '#050509' }}
       >
+        {/* Back — hidden when printing */}
+        <div className="flyer-query-control w-full max-w-[1080px] flex justify-start">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors touch-manipulation"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              borderColor: 'rgba(255,255,255,0.2)',
+              color: '#e2e8f0',
+            }}
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+        </div>
         {/* Query control — hidden when printing */}
         <div
           className="flyer-query-control flex flex-col gap-2 w-full max-w-[1080px] px-3 sm:px-4 py-3 rounded-xl border"
@@ -481,8 +511,19 @@ function FlyerPageContent() {
           }}
         >
           <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.9)' }}>
-            Send test invite via WhatsApp
+            Send invite via WhatsApp
           </span>
+          <input
+            type="text"
+            value={writingName}
+            onChange={(e) => setWritingName(e.target.value)}
+            placeholder="Writing Name (optional)"
+            className="w-full px-3 py-2 rounded-lg text-sm border bg-black/30 touch-manipulation"
+            style={{
+              borderColor: 'rgba(255,255,255,0.15)',
+              color: '#e2e8f0',
+            }}
+          />
           <textarea
             value={inviteMessage}
             onChange={(e) => setInviteMessage(e.target.value)}
@@ -507,10 +548,27 @@ function FlyerPageContent() {
                 color: '#e2e8f0',
               }}
             />
+            {(signedInUserName || signedInUserEmail) && (
+              <span className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                Signature: — {[signedInUserName, signedInUserEmail].filter(Boolean).join(' · ')}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => {
-                const text = encodeURIComponent(inviteMessage.trim() || 'Try Vani AI');
+                let message = inviteMessage.trim() || 'Try Vani AI';
+                const name = writingName.trim();
+                if (name) {
+                  message = message.replace(/\{\{name\}\}/g, name);
+                  if (!message.startsWith(`Hey ${name}`)) {
+                    message = message.replace(/^Hey!?\s*(👋\s*)?(\n\n)?/i, `Hey ${name}! 👋\n\n`);
+                  }
+                }
+                if (signedInUserName || signedInUserEmail) {
+                  const sig = [signedInUserName, signedInUserEmail].filter(Boolean).join('\n');
+                  message = `${message}\n\n— ${sig}`;
+                }
+                const text = encodeURIComponent(message);
                 const num = toNumber.trim().replace(/\D/g, '');
                 const url = num ? `https://wa.me/${num}?text=${text}` : `https://wa.me/?text=${text}`;
                 window.open(url, '_blank');

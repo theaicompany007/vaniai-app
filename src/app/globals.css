@@ -69,8 +69,12 @@ html, body {
 }
 
 @keyframes flyer-dot-glow {
-  0%, 100% { box-shadow: 0 0 6px var(--wo-primary), 0 0 12px rgba(0, 217, 255, 0.4); }
-  50%      { box-shadow: 0 0 12px var(--wo-primary), 0 0 22px rgba(0, 217, 255, 0.6); }
+  0%, 100% {
+    box-shadow: 0 0 8px var(--wo-primary), 0 0 16px rgba(0, 217, 255, 0.5), 0 0 24px rgba(0, 217, 255, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 14px var(--wo-primary), 0 0 28px rgba(0, 217, 255, 0.7), 0 0 40px rgba(0, 217, 255, 0.35);
+  }
 }
 .flyer-dot {
   animation: flyer-dot-glow 2s ease-in-out infinite;

@@ -178,6 +178,8 @@ export default function TopNav() {
               style={{
                 width: 10,
                 height: 10,
+                minWidth: 10,
+                minHeight: 10,
                 background: 'var(--wo-primary)',
               }}
               aria-label="Marketing flyer"

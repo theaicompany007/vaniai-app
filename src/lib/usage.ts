@@ -35,12 +35,21 @@ export function isCreatorOrg(org: { slug?: string; name?: string; profile?: unkn
   if (identifiers.length === 0) return false;
   const orgName = (org?.name ?? '').toLowerCase();
   const orgNameNorm = orgName.replace(/\s+/g, '').replace(/-/g, '');
-  const orgSlugBase = (org?.slug ?? '').replace(/-?\d{10,}$/, '').toLowerCase().replace(/-/g, '');
+  const orgSlug = (org?.slug ?? '').toLowerCase();
+  const orgSlugBase = orgSlug.replace(/-?\d{10,}$/, '').replace(/-/g, '');
+  const orgSlugNormFull = orgSlug.replace(/-/g, '');
   const profile = (org?.profile ?? {}) as { website_url?: string };
   const website = ((profile.website_url ?? '') + '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   return identifiers.some((id) => {
     const idNorm = id.replace(/\s+/g, '').replace(/-/g, '');
-    return orgName.includes(id) || orgNameNorm.includes(idNorm) || orgSlugBase.includes(idNorm) || website.includes(id);
+    return (
+      orgName.includes(id) ||
+      orgNameNorm.includes(idNorm) ||
+      orgSlugBase.includes(idNorm) ||
+      orgSlugNormFull === idNorm ||
+      orgSlug === id ||
+      website.includes(id)
+    );
   });
 }
 
