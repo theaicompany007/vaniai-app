@@ -1,10 +1,11 @@
 /**
  * Outreach Message Generator
  * Generates personalised Email / LinkedIn / WhatsApp messages using signal context.
- * Single LLM call — no tools needed.
+ * Single LLM call — no tools needed. Uses LLM_PROVIDER order with fallback (e.g. anthropic then openai then gemini).
  */
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-helpers';
+import { getLLMProviderOrder } from '@/lib/agents';
 
 type Channel = 'email' | 'linkedin' | 'whatsapp';
 
@@ -48,9 +49,9 @@ Rules:
 - End with a simple "?" to invite a reply`,
 };
 
-async function callLLM(prompt: string, userContent: string): Promise<string> {
-  const provider = process.env.LLM_PROVIDER ?? 'openai';
+type Provider = 'anthropic' | 'openai' | 'gemini';
 
+async function callOneProvider(provider: Provider, prompt: string, userContent: string): Promise<string> {
   if (provider === 'anthropic') {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -60,12 +61,13 @@ async function callLLM(prompt: string, userContent: string): Promise<string> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
+        model: process.env.ANTHROPIC_MODEL ?? 'claude-opus-4-5',
         max_tokens: 512,
         system: prompt,
         messages: [{ role: 'user', content: userContent }],
       }),
     });
+    if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
     const data = await res.json();
     return (data.content as Array<{ type: string; text?: string }>)
       .find((b) => b.type === 'text')?.text ?? '';
@@ -74,16 +76,18 @@ async function callLLM(prompt: string, userContent: string): Promise<string> {
   if (provider === 'gemini') {
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', systemInstruction: prompt });
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
+      systemInstruction: prompt,
+    });
     const result = await model.generateContent(userContent);
     return result.response.text();
   }
 
-  // Default: OpenAI
   const { default: OpenAI } = await import('openai');
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const res = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: process.env.OPENAI_MODEL ?? 'gpt-4o',
     max_tokens: 512,
     messages: [
       { role: 'system', content: prompt },
@@ -92,6 +96,20 @@ async function callLLM(prompt: string, userContent: string): Promise<string> {
     response_format: { type: 'json_object' },
   });
   return res.choices[0].message.content ?? '';
+}
+
+async function callLLM(prompt: string, userContent: string): Promise<string> {
+  const order = getLLMProviderOrder();
+  let lastErr: Error | null = null;
+  for (const provider of order) {
+    try {
+      return await callOneProvider(provider, prompt, userContent);
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      console.warn(`[outreach] ${provider} failed, trying next:`, lastErr.message);
+    }
+  }
+  throw lastErr ?? new Error('No LLM provider available.');
 }
 
 export async function POST(req: Request) {

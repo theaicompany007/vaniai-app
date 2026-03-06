@@ -1,6 +1,28 @@
 export type LLMProvider = 'anthropic' | 'openai' | 'gemini';
 
-const PROVIDER = (process.env.LLM_PROVIDER ?? 'anthropic') as LLMProvider;
+const ALLOWED: LLMProvider[] = ['anthropic', 'openai', 'gemini'];
+
+/** LLM_PROVIDER can be comma-separated (e.g. anthropic,openai,gemini,perplexity). The first valid value is used. */
+export function getLLMProvider(): LLMProvider {
+  const raw = (process.env.LLM_PROVIDER ?? 'anthropic').trim();
+  const first = raw.split(',')[0]?.trim().toLowerCase() ?? 'anthropic';
+  return (ALLOWED.includes(first as LLMProvider) ? first : 'anthropic') as LLMProvider;
+}
+
+/** Ordered list for fallback: try first, on failure try next (e.g. anthropic then openai then gemini). */
+export function getLLMProviderOrder(): LLMProvider[] {
+  const raw = (process.env.LLM_PROVIDER ?? 'anthropic').trim();
+  const list = raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const ordered: LLMProvider[] = [];
+  for (const p of list) {
+    if (ALLOWED.includes(p as LLMProvider) && !ordered.includes(p as LLMProvider)) {
+      ordered.push(p as LLMProvider);
+    }
+  }
+  return ordered.length ? ordered : ['anthropic'];
+}
+
+const PROVIDER = getLLMProvider();
 
 export interface AgentTool {
   name: string;
@@ -52,12 +74,21 @@ export interface AgentLoopOptions {
 }
 
 export async function agentLoop(opts: AgentLoopOptions): Promise<string> {
-  const provider = opts.provider ?? PROVIDER;
-  switch (provider) {
-    case 'openai':  return runOpenAILoop(opts);
-    case 'gemini':  return runGeminiLoop(opts);
-    default:        return runAnthropicLoop(opts);
+  const providers = opts.provider ? [opts.provider] : getLLMProviderOrder();
+  let lastErr: Error | null = null;
+  for (const provider of providers) {
+    try {
+      switch (provider) {
+        case 'openai':  return await runOpenAILoop(opts);
+        case 'gemini':  return await runGeminiLoop(opts);
+        default:        return await runAnthropicLoop(opts);
+      }
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      console.warn(`[agentLoop] ${provider} failed, trying next provider:`, lastErr.message);
+    }
   }
+  throw lastErr ?? new Error('No LLM provider available.');
 }
 
 // ─── Anthropic (Claude) ───────────────────────────────────────────────
@@ -73,7 +104,7 @@ async function runAnthropicLoop({ system, messages, tools, executeTool, maxRound
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
+        model: process.env.ANTHROPIC_MODEL ?? 'claude-opus-4-5',
         max_tokens: 4096,
         system,
         messages: msgs,
@@ -120,7 +151,7 @@ async function runOpenAILoop({ system, messages, tools, executeTool, maxRounds =
 
   for (let i = 0; i < maxRounds; i++) {
     const res = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model: process.env.OPENAI_MODEL ?? 'gpt-4o',
       messages: msgs as Parameters<typeof client.chat.completions.create>[0]['messages'],
       tools: toOpenAITools(tools) as Parameters<typeof client.chat.completions.create>[0]['tools'],
     });
@@ -145,7 +176,7 @@ async function runGeminiLoop({ system, messages, tools, executeTool, maxRounds =
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-pro',
+    model: process.env.GEMINI_MODEL ?? 'gemini-1.5-pro',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: toGeminiTools(tools) as any,
     systemInstruction: system,
@@ -194,7 +225,7 @@ export async function searchWeb(query: string): Promise<string> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar',
+        model: process.env.PERPLEXITY_MODEL ?? 'sonar',
         messages: [{ role: 'user', content: query }],
       }),
     });

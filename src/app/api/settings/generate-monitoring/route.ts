@@ -8,8 +8,10 @@ import { requireAuth } from '@/lib/api-helpers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { INDUSTRY_OPTIONS, ALL_SIGNAL_TYPES } from '@/lib/constants';
 
+import { getLLMProvider } from '@/lib/agents';
+
 type Provider = 'anthropic' | 'openai' | 'gemini';
-const PROVIDER = (process.env.LLM_PROVIDER ?? 'anthropic') as Provider;
+const PROVIDER = getLLMProvider() as Provider;
 
 async function callAnthropic(prompt: string): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -20,7 +22,7 @@ async function callAnthropic(prompt: string): Promise<string> {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-3-5-haiku-20241022',
+      model: process.env.ANTHROPIC_MODEL_LIGHT ?? 'claude-3-5-haiku-20241022',
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -34,7 +36,7 @@ async function callOpenAI(prompt: string): Promise<string> {
   const { default: OpenAI } = await import('openai');
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const res = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: process.env.OPENAI_MODEL_LIGHT ?? 'gpt-4o-mini',
     max_tokens: 1024,
     messages: [{ role: 'user', content: prompt }],
     response_format: { type: 'json_object' },
@@ -46,7 +48,7 @@ async function callGemini(prompt: string): Promise<string> {
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: process.env.GEMINI_MODEL_LIGHT ?? 'gemini-1.5-flash',
     generationConfig: { responseMimeType: 'application/json' } as Record<string, unknown>,
   });
   const result = await model.generateContent(prompt);

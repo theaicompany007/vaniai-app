@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/api-helpers';
 import { getSupabaseServer } from '@/lib/supabase';
+import { getCreatorOrgId } from '@/lib/usage';
 
 /**
  * GET /api/auth/session
  * Returns current user and org (if any). Use to redirect users with no org to complete-setup.
+ * isCreatorOrgAdmin: true when current user's org matches CREATOR_ORG_SLUG (e.g. for flyer link).
  */
 export async function GET() {
   const user = await getSessionUser();
@@ -21,6 +23,9 @@ export async function GET() {
   const meta = (authUser?.user_metadata ?? {}) as Record<string, string>;
   const role = membership?.role as string | undefined;
   const demoMode = process.env['BYPASS_USAGE_LIMITS'] === 'true';
+  const creatorOrgId = await getCreatorOrgId();
+  const isCreatorOrgAdmin = Boolean(creatorOrgId && membership?.org_id && creatorOrgId === membership.org_id);
+
   return NextResponse.json({
     userId: user.userId,
     email: user.email,
@@ -28,5 +33,6 @@ export async function GET() {
     role: role ?? null,
     avatar_url: meta.avatar_url ?? null,
     demoMode,
+    isCreatorOrgAdmin,
   });
 }

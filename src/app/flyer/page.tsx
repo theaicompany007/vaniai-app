@@ -194,6 +194,30 @@ function FlyerPageContent() {
   const [queryOverride, setQueryOverride] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [showAllCompanies, setShowAllCompanies] = useState(false);
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://vaniai.theaicompany.co';
+  const [inviteMessage, setInviteMessage] = useState(
+    () =>
+      `Hey! 👋\n\n` +
+      `*Vani AI* – Know who to call. Know exactly what to say.\n\n` +
+      `✨ *Why sales teams love it:*\n` +
+      `• Real-time buying signals from news, LinkedIn & reports – scored and ranked\n` +
+      `• One-click AI outreach: personalised Email, LinkedIn & WhatsApp messages\n` +
+      `• Automated playbooks 24/7 – never miss a warm lead\n` +
+      `• Used by teams tracking Unilever, Parle Agro, FMCG & more\n\n` +
+      `🎯 Stop guessing. Start closing.\n\n` +
+      `Try it free (no credit card):\n${APP_URL}`
+  );
+  const [toNumber, setToNumber] = useState('');
+  const flyerWrapperRef = useRef<HTMLDivElement>(null);
+  const [flyerScale, setFlyerScale] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    return window.innerWidth < 1080 ? window.innerWidth / 1080 : 1;
+  });
+  const [flyerWrapperHeight, setFlyerWrapperHeight] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    if (window.innerWidth >= 1080) return null;
+    return 1350 * (window.innerWidth / 1080);
+  });
 
   const companyParam = searchParams.get('company')?.toLowerCase().trim();
   const demoParam = searchParams.get('demo')?.toLowerCase().trim();
@@ -232,6 +256,31 @@ function FlyerPageContent() {
   const COMPANY_BUTTON_LIMIT = 7;
   const visibleCompanies = showAllCompanies ? filteredCompanies : filteredCompanies.slice(0, COMPANY_BUTTON_LIMIT);
   const hasMoreCompanies = filteredCompanies.length > COMPANY_BUTTON_LIMIT;
+
+  // Mobile: scale flyer to fit viewport (reliable on iOS Safari vs CSS calc in transform)
+  useEffect(() => {
+    function updateScale() {
+      if (typeof window === 'undefined') return;
+      const w = Math.min(flyerWrapperRef.current?.clientWidth ?? window.innerWidth, 1080);
+      if (w < 1080) {
+        const scale = w / 1080;
+        setFlyerScale(scale);
+        setFlyerWrapperHeight(1350 * scale);
+      } else {
+        setFlyerScale(1);
+        setFlyerWrapperHeight(null);
+      }
+    }
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    const ro = new ResizeObserver(updateScale);
+    const el = flyerWrapperRef.current;
+    if (el) ro.observe(el);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateScale);
+    };
+  }, []);
 
   useEffect(() => {
     if (!dataReady || captureDone || !signalsCaptureRef.current) return;
@@ -314,16 +363,40 @@ function FlyerPageContent() {
             .print-only { display: block !important; }
             .no-print-link { color: inherit; text-decoration: none; }
             .flyer-query-control { display: none !important; }
+            .flyer-broadcast { display: none !important; }
+          }
+          /* Mobile: touch-friendly controls; scale is applied via JS for iOS Safari */
+          @media (max-width: 1079px) {
+            .flyer-print-wrapper {
+              padding: 0.5rem;
+              padding-left: max(0.5rem, env(safe-area-inset-left));
+              padding-right: max(0.5rem, env(safe-area-inset-right));
+              gap: 0.75rem;
+            }
+            .flyer-query-control,
+            .flyer-broadcast { padding: 0.75rem 1rem; max-width: 100%; }
+            .flyer-canvas-wrapper {
+              width: 100%;
+              overflow: hidden;
+              display: flex;
+              justify-content: center;
+              -webkit-overflow-scrolling: touch;
+            }
+            .flyer-broadcast .broadcast-to-input { min-width: 0; width: 100%; }
+            .flyer-broadcast .broadcast-actions { flex-direction: column; align-items: stretch; }
+          }
+          @media (min-width: 1080px) {
+            .flyer-canvas-wrapper { width: 100%; display: flex; justify-content: center; }
           }
         `,
       }} />
       <div
-        className="flyer-print-wrapper min-h-screen flex flex-col items-center p-4 gap-4"
+        className="flyer-print-wrapper min-h-screen flex flex-col items-center p-2 sm:p-4 gap-2 sm:gap-4"
         style={{ background: '#050509' }}
       >
         {/* Query control — hidden when printing */}
         <div
-          className="flyer-query-control flex flex-col gap-2 w-full max-w-[1080px] px-4 py-3 rounded-xl border"
+          className="flyer-query-control flex flex-col gap-2 w-full max-w-[1080px] px-3 sm:px-4 py-3 rounded-xl border"
           style={{
             background: '#0d0d14',
             borderColor: 'rgba(0,201,177,0.3)',
@@ -335,7 +408,7 @@ function FlyerPageContent() {
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
               placeholder="Filter companies…"
-              className="min-w-[140px] px-2.5 py-1.5 rounded-lg text-xs border bg-black/30"
+              className="min-w-0 flex-1 sm:flex-initial sm:min-w-[140px] px-2.5 py-2 sm:py-1.5 rounded-lg text-sm sm:text-xs border bg-black/30 touch-manipulation"
               style={{
                 borderColor: 'rgba(255,255,255,0.15)',
                 color: '#e2e8f0',
@@ -352,7 +425,7 @@ function FlyerPageContent() {
             <button
               type="button"
               onClick={() => handleQueryChange('')}
-              className="px-3 py-2 rounded-lg text-sm font-medium border transition-colors flex-shrink-0"
+              className="px-3 py-2.5 sm:py-2 rounded-lg text-sm font-medium border transition-colors flex-shrink-0 touch-manipulation min-h-[44px] sm:min-h-0"
               style={{
                 background: !queryOverride ? 'rgba(0,201,177,0.2)' : '#1a1a2e',
                 borderColor: !queryOverride ? TEAL : 'rgba(255,255,255,0.2)',
@@ -368,7 +441,7 @@ function FlyerPageContent() {
                   key={company}
                   type="button"
                   onClick={() => handleQueryChange(company)}
-                  className="px-3 py-2 rounded-lg text-sm font-medium border transition-colors flex-shrink-0"
+                  className="px-3 py-2.5 sm:py-2 rounded-lg text-sm font-medium border transition-colors flex-shrink-0 touch-manipulation min-h-[44px] sm:min-h-0"
                   style={{
                     background: isActive ? 'rgba(0,201,177,0.2)' : '#1a1a2e',
                     borderColor: isActive ? TEAL : 'rgba(255,255,255,0.2)',
@@ -383,7 +456,7 @@ function FlyerPageContent() {
               <button
                 type="button"
                 onClick={() => setShowAllCompanies((v) => !v)}
-                className="px-3 py-2 rounded-lg text-sm font-medium border transition-colors flex-shrink-0"
+                className="px-3 py-2.5 sm:py-2 rounded-lg text-sm font-medium border transition-colors flex-shrink-0 touch-manipulation min-h-[44px] sm:min-h-0"
                 style={{
                   background: '#1a1a2e',
                   borderColor: 'rgba(0,201,177,0.5)',
@@ -399,15 +472,98 @@ function FlyerPageContent() {
           </span>
         </div>
 
+        {/* WhatsApp Broadcast — invite for testing; hidden when printing */}
         <div
-          className="flyer-canvas relative overflow-hidden rounded-lg"
+          className="flyer-broadcast flex flex-col gap-3 w-full max-w-[1080px] px-3 sm:px-4 py-3 rounded-xl border"
           style={{
-            width: 1080,
-            height: 1350,
-            background: FLYER_BG,
+            background: '#0d0d14',
+            borderColor: 'rgba(0,201,177,0.3)',
           }}
         >
-          {/* Background blobs */}
+          <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.9)' }}>
+            Send test invite via WhatsApp
+          </span>
+          <textarea
+            value={inviteMessage}
+            onChange={(e) => setInviteMessage(e.target.value)}
+            rows={5}
+            placeholder="Invite message…"
+            className="w-full px-3 py-2 rounded-lg text-sm border bg-black/30 resize-y min-h-[100px] touch-manipulation"
+            style={{
+              borderColor: 'rgba(255,255,255,0.15)',
+              color: '#e2e8f0',
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-2 broadcast-actions">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={toNumber}
+              onChange={(e) => setToNumber(e.target.value)}
+              placeholder="To number (optional, e.g. 919873154007)"
+              className="broadcast-to-input min-w-0 flex-1 sm:min-w-[200px] px-2.5 py-2 sm:py-1.5 rounded-lg text-sm sm:text-xs border bg-black/30 touch-manipulation"
+              style={{
+                borderColor: 'rgba(255,255,255,0.15)',
+                color: '#e2e8f0',
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const text = encodeURIComponent(inviteMessage.trim() || 'Try Vani AI');
+                const num = toNumber.trim().replace(/\D/g, '');
+                const url = num ? `https://wa.me/${num}?text=${text}` : `https://wa.me/?text=${text}`;
+                window.open(url, '_blank');
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 py-3 sm:py-2 rounded-lg text-sm font-medium border transition-colors touch-manipulation min-h-[44px] sm:min-h-0"
+              style={{
+                background: 'rgba(37,211,102,0.15)',
+                borderColor: 'rgba(37,211,102,0.5)',
+                color: '#25d366',
+              }}
+            >
+              <MessageCircle className="w-4 h-4" /> Open in WhatsApp
+            </button>
+          </div>
+        </div>
+
+        {/* Print / Save as PDF — hidden when printing */}
+        <div className="flyer-query-control flex flex-wrap items-center gap-2 w-full max-w-[1080px]">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors touch-manipulation min-h-[44px] sm:min-h-0"
+            style={{
+              background: 'rgba(0,201,177,0.15)',
+              borderColor: TEAL,
+              color: TEAL,
+            }}
+          >
+            Print / Save as PDF
+          </button>
+        </div>
+
+        <div
+          ref={flyerWrapperRef}
+          className="flyer-canvas-wrapper w-full max-w-[1080px]"
+          style={
+            flyerWrapperHeight != null
+              ? { height: flyerWrapperHeight, maxHeight: flyerWrapperHeight }
+              : undefined
+          }
+        >
+          <div
+            className="flyer-canvas relative overflow-hidden rounded-lg flex-shrink-0"
+            style={{
+              width: 1080,
+              height: 1350,
+              background: FLYER_BG,
+              transform: flyerScale !== 1 ? `scale(${flyerScale})` : undefined,
+              WebkitTransform: flyerScale !== 1 ? `scale(${flyerScale})` : undefined,
+              transformOrigin: 'top center',
+            }}
+          >
+            {/* Background blobs */}
           <div
             className="absolute pointer-events-none w-[600px] h-[600px] rounded-full blur-[120px] -top-40 -left-40"
             style={{ background: TEAL, opacity: 0.13 }}
@@ -628,6 +784,7 @@ function FlyerPageContent() {
               <span>vaniai.theaicompany.co</span>
             </footer>
           </div>
+        </div>
         </div>
       </div>
 

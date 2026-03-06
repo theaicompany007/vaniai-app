@@ -68,6 +68,14 @@ html, body {
   animation: tagline-glow 2.5s ease-in-out infinite;
 }
 
+@keyframes flyer-dot-glow {
+  0%, 100% { box-shadow: 0 0 6px var(--wo-primary), 0 0 12px rgba(0, 217, 255, 0.4); }
+  50%      { box-shadow: 0 0 12px var(--wo-primary), 0 0 22px rgba(0, 217, 255, 0.6); }
+}
+.flyer-dot {
+  animation: flyer-dot-glow 2s ease-in-out infinite;
+}
+
 /* Header agent ticker — horizontal scroll (marquee-style) */
 @keyframes agent-ticker-scroll {
   0%   { transform: translateX(0); }

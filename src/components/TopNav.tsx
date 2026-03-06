@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -102,6 +103,7 @@ export default function TopNav() {
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [isCreatorOrgAdmin, setIsCreatorOrgAdmin] = useState(false);
 
   const hidePlaybookChip = () => {
     setPlaybookChipHidden(true);
@@ -123,6 +125,7 @@ export default function TopNav() {
         }
         if (data?.avatar_url) setUserAvatarUrl(data.avatar_url);
         if (data?.demoMode) setDemoMode(true);
+        if (data?.isCreatorOrgAdmin) setIsCreatorOrgAdmin(true);
       })
       .catch(() => {});
   }, []);
@@ -167,6 +170,21 @@ export default function TopNav() {
               </span>
             </p>
           </div>
+          {isCreatorOrgAdmin && (
+            <Link
+              href="/flyer"
+              title="Marketing flyer"
+              className="flyer-dot flex items-center justify-center flex-shrink-0 rounded-full transition-transform hover:scale-110"
+              style={{
+                width: 10,
+                height: 10,
+                background: 'var(--wo-primary)',
+              }}
+              aria-label="Marketing flyer"
+            >
+              <span className="sr-only">Marketing flyer</span>
+            </Link>
+          )}
         </div>
 
         {/* ── Center: agent line as ticker ("Vani AI agent" + name bold, scrolls horizontally) ── */}
