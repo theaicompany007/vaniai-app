@@ -22,9 +22,28 @@ export async function checkUsageLimit(
 
   const { data: org } = await admin
     .from('organizations')
-    .select('subscription_tier, subscription_status')
+    .select('subscription_tier, subscription_status, slug, name, profile')
     .eq('id', orgId)
     .single();
+
+  // Creator orgs (e.g. The AI Company, onlynereputation.com) always have unlimited usage.
+  // Match by: org name, slug (base part before timestamp), or website domain.
+  const identifiers = (process.env['CREATOR_ORG_SLUG'] ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (identifiers.length > 0) {
+    const orgName = (org?.name ?? '').toLowerCase();
+    const orgNameNorm = orgName.replace(/\s+/g, '').replace(/-/g, '');
+    const orgSlugBase = (org?.slug ?? '').replace(/-?\d{10,}$/, '').toLowerCase().replace(/-/g, '');
+    const profile = (org?.profile as { website_url?: string } | null) ?? {};
+    const website = ((profile.website_url ?? '') + '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const isCreator = identifiers.some((id) => {
+      const idNorm = id.replace(/\s+/g, '').replace(/-/g, '');
+      return orgName.includes(id) || orgNameNorm.includes(idNorm) || orgSlugBase.includes(idNorm) || website.includes(id);
+    });
+    if (isCreator) return { allowed: true, remaining: -1, limit: -1 };
+  }
 
   const tier = org?.subscription_tier ?? 'starter';
   const limits = PLAN_LIMITS[tier] ?? PLAN_LIMITS.starter;
